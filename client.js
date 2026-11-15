@@ -495,7 +495,19 @@ window.__ModuleLoader__.load({
       .st-flyout{padding:4px;background:var(--dsw-alias-bg-layer-2,#2c2c2e);
         border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.25));border-radius:12px;
         box-shadow:0 12px 32px rgba(0,0,0,.28)}
-      /* 「更多」按钮右侧的小箭头：收起时朝下，展开时朝上（2026-10-25） */
+      /* 把「插件 / Superagent / … / 更多」这一段钉在侧栏顶部：
+         工作区/会话列表在下面滚动，品牌行和新会话本来就在滚动区外面。
+         sticky 只在滚动容器里让出空间；背景必须实心，避免会话行透出来。 */
+      nav.st-pinned {
+        position: sticky;
+        top: 0;
+        z-index: 4;
+        background: var(--dsw-specific-sidebar-fill, var(--dsw-alias-bg-base, #fff));
+        box-shadow:
+          0 1px 0 var(--dsw-alias-border-l1, rgba(0, 0, 0, .06)),
+          0 9px 0 var(--dsw-specific-sidebar-fill, var(--dsw-alias-bg-base, #fff));
+      }
+      /* 「更多」右侧的小箭头：收起时朝下，展开时朝上（2026-10-25） */
       nav button[aria-haspopup="menu"]{position:relative;padding-right:24px!important}
       nav button[aria-haspopup="menu"]::after{content:"";position:absolute;right:9px;top:50%;
         width:6px;height:6px;border-right:1.6px solid currentColor;border-bottom:1.6px solid currentColor;
@@ -1366,6 +1378,7 @@ window.__ModuleLoader__.load({
 
       function render() {
         if (list === null) return
+        pinPanelNav()
         // React 重排侧栏时可能把我们的节点摘掉：重新挂回「更多」那行下面。
         // 面板 pin 状态变化还会重建「更多」按钮本身，所以先找回当前那颗按钮。
         if (!list.isConnected) {
@@ -1667,6 +1680,13 @@ window.__ModuleLoader__.load({
       }
     }
 
+    /** 给侧栏导航打上 st-pinned：让「全局面板行 + 更多」在滚动时固定在顶部。 */
+    function pinPanelNav() {
+      for (const nav of document.querySelectorAll('nav')) {
+        if (nav.querySelector('button[aria-haspopup="menu"]') !== null) nav.classList.add('st-pinned')
+      }
+    }
+
     /** 判定一颗按钮是不是侧栏「更多」：带 aria-haspopup="menu"、在 nav 里，且该 nav 有面板行。 */
     function moreButtonIn(button) {
       if (button === null || button === undefined) return null
@@ -1724,6 +1744,7 @@ window.__ModuleLoader__.load({
           scheduled = true
           queueMicrotask(() => {
             scheduled = false
+            pinPanelNav()
             const calls = tidy(ctx)
             if (calls >= 0 && calls !== lastTidyCalls) {
               lastTidyCalls = calls
@@ -1735,10 +1756,17 @@ window.__ModuleLoader__.load({
         }
         ctx.effect(() => ctx.slots.subscribe('sidebar.panellist', schedule), 'sidebar-tidy: panels')
         ctx.effect(() => ctx.slots.subscribe('sidebar', schedule), 'sidebar-tidy: sidebar')
+        ctx.effect(() => {
+          pinPanelNav()
+          return () => {
+            for (const nav of document.querySelectorAll('nav.st-pinned')) nav.classList.remove('st-pinned')
+          }
+        }, 'sidebar-tidy: pinned panel nav')
         schedule()
 
         // 恢复持久化顺序与自定义白名单（重启/重载后不丢）；面板列表变化时若下拉开着就重绘
         const sync = () => {
+          pinPanelNav()
           const order = readOrder()
           if (order.length > 0) {
             applyOrder(ctx, order)
