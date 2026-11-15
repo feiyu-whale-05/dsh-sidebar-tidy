@@ -45,6 +45,10 @@ window.__ModuleLoader__.load({
     const MOBILE_MODE_KEY = 'dsh-sidebar-tidy:mobile-layout'
     const MOBILE_MODES = ['always', 'auto', 'off']
     const MOBILE_BREAKPOINT = '(max-width: 1023px)'
+    // 金丝雀：先健康过一轮（三列 ≥3）才武装；之后连续 40 次 250ms
+    // reconcile 三列锚点全丢，判定官方 DOM 契约漂移，撤掉整套移动布局注入。
+    const CANARY_MISS_LIMIT = 40
+    const CANARY_TICK_MS = 250
     const LOG_MAX_QUEUE = 200
     const LOG_BATCH = 100
     const LOG_FLUSH_DELAY_MS = 350
@@ -719,6 +723,49 @@ window.__ModuleLoader__.load({
       }
     }
 
+    /**
+     * 金丝雀状态机。healthy = 三列锚点齐全；armed 之前一次都不计数；
+     * armed 之后只有「连续」全部丢失才触发；1-2 列缺失视为可恢复抖动，归零。
+     * 纯函数式状态机，便于单测六种行为；真正的卸载由 onTrip 回调执行。
+     */
+    function createCanaryGuard(limit, onTrip) {
+      let armed = false
+      let misses = 0
+      let tripped = false
+      const state = () => ({ armed, misses, tripped })
+      return {
+        step(markedColumns) {
+          if (tripped) return state()
+          if (markedColumns >= 3) {
+            armed = true
+            misses = 0
+            return state()
+          }
+          if (!armed) return state()
+          if (markedColumns === 0) {
+            misses += 1
+            if (misses >= limit) {
+              tripped = true
+              const reason = `markedColumnCount=0 for ${misses} consecutive ticks (limit ${limit})`
+              try {
+                onTrip?.(reason)
+              } catch {
+                // 卸载失败也不能让页面崩溃
+              }
+            }
+          } else {
+            misses = 0
+          }
+          return state()
+        },
+        reset() {
+          armed = false
+          misses = 0
+        },
+        state,
+      }
+    }
+
     function createMobileLayout(ctx) {
       let mode = readMobileMode()
       let active = false
@@ -741,6 +788,10 @@ window.__ModuleLoader__.load({
       let officialExpandedByUs = false
       let bypassOfficialToggle = false
       let observations = null
+      let backstopTimer = null
+      let canaryTripped = false
+      let canaryReason = null
+      const canary = createCanaryGuard(CANARY_MISS_LIMIT, reason => tripCanary(reason))
       const startedAt = Date.now()
       const media = typeof window.matchMedia === 'function' ? window.matchMedia(MOBILE_BREAKPOINT) : null
 
@@ -861,6 +912,58 @@ window.__ModuleLoader__.load({
         if (scrim !== null) { scrim.remove(); scrim = null }
       }
 
+      /** 当前 frame 直系子节点里带三列标记的数量；0 才是「契约全丢」。 */
+      function markedColumnCount(target) {
+        if (target === null) return 0
+        let count = 0
+        for (const child of target.children) {
+          if (child.classList.contains('st-ml-col-1')
+            || child.classList.contains('st-ml-col-2')
+            || child.classList.contains('st-ml-col-3')) {
+            count += 1
+          }
+        }
+        return count
+      }
+
+      function startBackstop() {
+        if (backstopTimer !== null || canaryTripped) return
+        backstopTimer = window.setInterval(() => {
+          if (!disposed && active && !canaryTripped) sync()
+        }, CANARY_TICK_MS)
+      }
+
+      function stopBackstop() {
+        if (backstopTimer === null) return
+        window.clearInterval(backstopTimer)
+        backstopTimer = null
+      }
+
+      /**
+       * 金丝雀触发后的 fail-safe：撤掉移动布局的 CSS / FAB / 遮罩 / 列标记，
+       * 把官方状态尽量还原，然后永久停止这一轮的 reconcile（幂等）。
+       * 主插件的面板 tidy 仍走官方 slot，不依赖三列锚点，因此保留。
+       */
+      function tripCanary(reason) {
+        if (canaryTripped) return
+        canaryTripped = true
+        canaryReason = reason
+        stopBackstop()
+        log('warn', 'canary.trip', `canary tripped — reason: ${reason}`, { reason, mode })
+        if (active) deactivate(true)
+        else {
+          clearAllMarks()
+          removeChrome()
+          document.documentElement.classList.remove('st-ml-on')
+        }
+        if (styleTag !== null) {
+          styleTag.remove()
+          styleTag = null
+        }
+        const leftover = document.querySelector('style[data-plugin-css="dsh-sidebar-tidy-mobile"]')
+        if (leftover !== null) leftover.remove()
+      }
+
       function createChrome() {
         if (fab === null) {
           fab = document.createElement('button')
@@ -970,9 +1073,10 @@ window.__ModuleLoader__.load({
       }
 
       function sync() {
-        if (disposed || !active) return
+        if (disposed || !active || canaryTripped) return
         frame = findFrame()
         if (frame === null) {
+          canary.step(0)
           scheduleMissing()
           return
         }
@@ -993,6 +1097,7 @@ window.__ModuleLoader__.load({
         if (topbar.getAttribute('aria-label') !== label) topbar.setAttribute('aria-label', label)
         if (topbar.getAttribute('title') !== label) topbar.setAttribute('title', label)
         markColumns(frame)
+        canary.step(markedColumnCount(frame))
       }
 
       function scheduleMissing() {
@@ -1085,19 +1190,25 @@ window.__ModuleLoader__.load({
       }
 
       function activate() {
-        if (active) return
+        if (active || canaryTripped) return
         active = true
         missingRetries = 0
         ensureStyle()
         document.documentElement.classList.add('st-ml-on')
         refreshUi()
         log('info', 'mobile.activate', '启用移动抽屉布局', { mode, media: media?.matches === true })
+        startBackstop()
         scheduleSync()
       }
 
       function deactivate(restore = false) {
         if (!active) return
         active = false
+        stopBackstop()
+        if (!canaryTripped) {
+          canary.reset()
+          canaryReason = null
+        }
         drawerOpen = false
         closing = false
         if (closeTimer !== null) {
@@ -1125,7 +1236,7 @@ window.__ModuleLoader__.load({
       }
 
       function reconcile() {
-        if (disposed) return
+        if (disposed || canaryTripped) return
         if (!shouldRun()) {
           if (active) deactivate()
           return
@@ -1166,6 +1277,7 @@ window.__ModuleLoader__.load({
           disposed = true
           modeListeners.clear()
           uiListeners.clear()
+          stopBackstop()
           observations?.stop()
           observations = null
           deactivate(true)
@@ -1216,6 +1328,7 @@ window.__ModuleLoader__.load({
         open: openDrawer,
         subscribeUi,
         getUiSnapshot: () => uiSnapshot,
+        getCanary: () => ({ ...canary.state(), tripped: canaryTripped, reason: canaryReason }),
         modeText,
         getMode: () => mode,
         isActive: () => active,
@@ -2007,6 +2120,9 @@ window.__ModuleLoader__.load({
       reorder,
       moveInto,
       KEEP,
+      CANARY_MISS_LIMIT,
+      CANARY_TICK_MS,
+      createCanaryGuard,
       // pluginNavigation / uiWorkspace 不是核心服务：前者由 ui-plugin-manager
       // 动态 provide，后者可能被极简组合省略。硬 inject 会让整个插件在缺少
       // 它们时直接不激活，所以改为运行时 ctx.get(...) 可选读取。

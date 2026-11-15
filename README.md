@@ -29,6 +29,26 @@ DSH Web 左侧栏精简 + 移动抽屉布局插件（`0.2.2-rc.3`，与当前 DS
 
 实现使用 0.2.2-rc.3 的稳定锚点：`[data-shell-overlay]`、`[data-sidebar-toggle]` / `[data-sidebar-opener]`、`data-sidebar-collapsed`、`data-sidebar-right-panel` / `data-sidebar-right-open`、`[data-composer-card]`；不依赖哈希类名、不写死 0.1.2 的中文文案。
 
+## 金丝雀 fail-safe
+
+移动布局带一个「先健康过一轮才武装」的金丝雀，用来应对 DSH 升级后三列 DOM 锚点整体消失：
+
+- 观测 `markedColumnCount(frame)`：frame 直系子节点里带 `st-ml-col-1/2/3` 的数量
+- `unarmed`：还没见过 `>=3`，此时一次都不计数，冷启动不会误触发
+- `armed`：三列齐全过至少一轮；之后每个 250ms backstop tick 检查一次
+- 只有**连续 40 次**（≈10 秒）`markedColumnCount === 0` 才判定契约漂移；1–2 列缺失视为可恢复抖动，misses 归零
+- 任一健康轮（`>=3`）都会把 misses 清零
+
+触发后按序 self-unload：
+
+1. 停掉 250ms reconciler
+2. 移除移动布局 CSS（`style[data-plugin-css="dsh-sidebar-tidy-mobile"]`）
+3. 移除 FAB / 顶栏按钮 / 遮罩
+4. 清除 `st-ml-frame` / `st-ml-open` / `st-ml-col-*` / `st-ml-sidebar` / `st-ml-on`
+5. 用 `console.warn` + 文件日志发出一次 `canary tripped — reason: ...`，置 `canaryTripped`，不再重试
+
+主插件的面板 tidy 仍走官方 slot，不依赖三列锚点，因此保留；被撤掉的只有移动布局这半套注入。失败方向是**回到官方原生布局**，不是留下半个坏布局。
+
 ## 日志
 
 日志由 Host 半侧写入：

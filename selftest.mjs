@@ -27,6 +27,55 @@ check('inject', JSON.stringify(mod.inject) === JSON.stringify(['slots', 'locale'
 check('version 与 DSH 一致', mod.version === '0.2.2-rc.3', mod.version)
 check('KEEP 默认五个面板', Array.isArray(mod.KEEP) && mod.KEEP.length === 5, mod.KEEP)
 
+// —— 金丝雀六条行为（常量 / 健康 / 冷启动 / 漂移 / 幂等 / 抖动）——
+const source = readFileSync(new URL('./client.js', import.meta.url), 'utf8')
+const canaryLimitMatch = /const CANARY_MISS_LIMIT = (\d+)/u.exec(source)
+const canaryTickMatch = /const CANARY_TICK_MS = (\d+)/u.exec(source)
+const canaryLimit = canaryLimitMatch === null ? -1 : Number(canaryLimitMatch[1])
+const canaryTick = canaryTickMatch === null ? -1 : Number(canaryTickMatch[1])
+check('canary 常量 40 / 250ms', canaryLimit === 40 && canaryTick === 250
+  && mod.CANARY_MISS_LIMIT === canaryLimit && mod.CANARY_TICK_MS === canaryTick,
+{ canaryLimit, canaryTick })
+
+const healthyGuard = mod.createCanaryGuard(canaryLimit, () => { throw new Error('healthy must not trip') })
+for (let index = 0; index < canaryLimit + 20; index += 1) healthyGuard.step(3)
+check('canary 健康不触发', healthyGuard.state().tripped === false && healthyGuard.state().armed === true,
+  healthyGuard.state())
+
+const coldGuard = mod.createCanaryGuard(canaryLimit, () => { throw new Error('cold start must not trip') })
+for (let index = 0; index < canaryLimit + 20; index += 1) coldGuard.step(0)
+const coldState = coldGuard.state()
+coldGuard.step(3)
+check('canary 冷启动不触发', coldState.tripped === false && coldState.misses === 0
+  && coldState.armed === false && coldGuard.state().armed === true, { coldState, after: coldGuard.state() })
+
+const driftTrips = []
+const driftGuard = mod.createCanaryGuard(canaryLimit, reason => driftTrips.push(reason))
+driftGuard.step(3)
+for (let index = 0; index < canaryLimit; index += 1) driftGuard.step(0)
+check('canary 漂移触发并告警', driftTrips.length === 1
+  && /markedColumnCount=0/u.test(driftTrips[0]) && new RegExp(`limit ${canaryLimit}`, 'u').test(driftTrips[0]),
+{ trips: driftTrips, state: driftGuard.state() })
+for (let index = 0; index < canaryLimit * 3; index += 1) driftGuard.step(0)
+check('canary 幂等只告警一次', driftTrips.length === 1, { trips: driftTrips.length, state: driftGuard.state() })
+
+const jitterTrips = []
+const jitterGuard = mod.createCanaryGuard(canaryLimit, reason => jitterTrips.push(reason))
+jitterGuard.step(3)
+for (let index = 0; index < Math.floor(canaryLimit / 2); index += 1) jitterGuard.step(0)
+jitterGuard.step(3)
+for (let index = 0; index < canaryLimit * 3; index += 1) {
+  jitterGuard.step(index % 5 === 4 ? 3 : 0)
+}
+check('canary 抖动不自杀', jitterTrips.length === 0 && jitterGuard.state().tripped === false,
+{ trips: jitterTrips.length, state: jitterGuard.state() })
+
+const partialGuard = mod.createCanaryGuard(canaryLimit, () => { throw new Error('partial loss must not trip') })
+partialGuard.step(3)
+for (let index = 0; index < canaryLimit * 2; index += 1) partialGuard.step(1)
+check('canary 少一列不自杀', partialGuard.state().tripped === false && partialGuard.state().misses === 0,
+  partialGuard.state())
+
 // —— 排序：持久化顺序优先，其余按 order/label ——
 const rows = [
   { id: 'a', label: 'A', order: 0 },
