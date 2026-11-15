@@ -1,0 +1,11 @@
+# dsh-sidebar-tidy bundle patch。
+# 宿主半端负责接收客户端日志并落盘；可选配置见 README：
+#   config:
+#     logDir: 'D:/DSH-plugins/log/dsh-sidebar-tidy'
+#     enabled: true
+#     level: debug
+#     maxFileBytes: 4194304
+#     maxRecords: 200
+- insert:
+    - id: sidebar-tidy
+      name: dsh-sidebar-tidy
