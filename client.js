@@ -647,6 +647,9 @@ window.__ModuleLoader__.load({
       .st-ml-topbar:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary);
         outline-offset: -2px; }
       .st-ml-topbar[hidden] { display: none; }
+      /* 官方 leading 座位在 Windows 位于标题栏（frame 的 padding-top 区域）；
+         移动模式统一用内容顶栏里的替代按钮，避免收起时按钮跳到标题栏。 */
+      .st-ml-on button[data-sidebar-opener] { visibility: hidden !important; }
       .st-ml-scrim {
         position: fixed; inset: 0; z-index: 25; background: rgba(0, 0, 0, .36);
         touch-action: none; animation: st-ml-scrim-in 160ms ease-out;
@@ -853,18 +856,6 @@ window.__ModuleLoader__.load({
         if (scrim.parentElement === null) document.body.appendChild(scrim)
       }
 
-      /** 官方 leading 座位只在抽屉/darwin 场景挂载；宽屏时用它顶替左上角按钮。 */
-      function officialOpenerVisible() {
-        const button = document.querySelector('button[data-sidebar-opener]')
-        if (button === null) return false
-        const rect = button.getBoundingClientRect()
-        if (rect.width <= 0 || rect.height <= 0) return false
-        const style = getComputedStyle(button)
-        if (style.visibility === 'hidden' || style.display === 'none' || Number(style.opacity) <= 0.05) return false
-        const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)
-        return hit === button || button.contains(hit)
-      }
-
       /** 调官方 toggle（优先 layout service；回退点击时绕过我们自己的捕获拦截）。 */
       function toggleOfficial() {
         const layout = optionalService('layout')
@@ -939,10 +930,7 @@ window.__ModuleLoader__.load({
         createChrome()
         scrim.hidden = !drawerOpen
         fab.hidden = drawerOpen
-        // 先藏掉自己的替代按钮，避免 elementFromPoint 命中它而误判官方按钮可见。
-        topbar.hidden = true
-        const officialVisible = officialOpenerVisible()
-        topbar.hidden = drawerOpen || officialVisible
+        topbar.hidden = drawerOpen
         const label = textFor(ctx, '打开侧边栏', 'Open sidebar')
         if (fab.getAttribute('aria-label') !== label) fab.setAttribute('aria-label', label)
         if (fab.getAttribute('title') !== label) fab.setAttribute('title', label)
