@@ -23,6 +23,8 @@ DSH Web 左侧栏精简 + 移动抽屉布局插件（`0.2.2-rc.3`，与当前 DS
 
 动画：抽屉打开 240ms 滑入；收起时先给 `st-ml-closing` 类做 180ms 滑出 + 遮罩淡出，动画结束后才真正移除抽屉，避免瞬间消失；`prefers-reduced-motion: reduce` 时自动关闭动画。
 
+左上角官方「打开侧边栏」按钮与圆形 FAB 共用一套开合逻辑：移动模式下点它打开抽屉；抽屉打开后点侧栏内的折叠按钮，会走同样的 180ms 滑出动画。抽屉收起时会同步收回官方侧栏，左上角按钮保持可见，不会出现「按钮消失 / 点了又奇怪地收回」。
+
 实现使用 0.2.2-rc.3 的稳定锚点：`[data-shell-overlay]`、`[data-sidebar-toggle]` / `[data-sidebar-opener]`、`data-sidebar-collapsed`、`data-sidebar-right-panel` / `data-sidebar-right-open`、`[data-composer-card]`；不依赖哈希类名、不写死 0.1.2 的中文文案。
 
 ## 日志

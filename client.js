@@ -678,6 +678,7 @@ window.__ModuleLoader__.load({
       let missingTimer = null
       let missingRetries = 0
       let officialExpandedByUs = false
+      let bypassOfficialToggle = false
       let observations = null
       const startedAt = Date.now()
       const media = typeof window.matchMedia === 'function' ? window.matchMedia(MOBILE_BREAKPOINT) : null
@@ -822,10 +823,8 @@ window.__ModuleLoader__.load({
         if (scrim.parentElement === null) document.body.appendChild(scrim)
       }
 
-      function requestOfficialExpand() {
-        const target = frame ?? findFrame()
-        if (target === null || !target.hasAttribute('data-sidebar-collapsed')) return
-        officialExpandedByUs = true
+      /** 调官方 toggle（优先 layout service；回退点击时绕过我们自己的捕获拦截）。 */
+      function toggleOfficial() {
         const layout = optionalService('layout')
         try {
           if (typeof layout?.toggleSidebar === 'function') {
@@ -835,8 +834,23 @@ window.__ModuleLoader__.load({
         } catch {
           // 回退到按钮点击
         }
-        const toggle = target.querySelector('button[data-sidebar-toggle], button[data-sidebar-opener]')
-        if (toggle !== null) toggle.click()
+        const target = frame ?? findFrame()
+        const toggle = target?.querySelector('button[data-sidebar-toggle], button[data-sidebar-opener]') ?? null
+        if (toggle !== null) {
+          bypassOfficialToggle = true
+          try {
+            toggle.click()
+          } finally {
+            bypassOfficialToggle = false
+          }
+        }
+      }
+
+      function requestOfficialExpand() {
+        const target = frame ?? findFrame()
+        if (target === null || !target.hasAttribute('data-sidebar-collapsed')) return
+        officialExpandedByUs = true
+        toggleOfficial()
       }
 
       function restoreOfficial() {
@@ -844,17 +858,27 @@ window.__ModuleLoader__.load({
         officialExpandedByUs = false
         const target = frame ?? findFrame()
         if (target === null || target.hasAttribute('data-sidebar-collapsed')) return
-        const layout = optionalService('layout')
-        try {
-          if (typeof layout?.toggleSidebar === 'function') {
-            layout.toggleSidebar()
-            return
-          }
-        } catch {
-          // 忽略
-        }
-        const toggle = target.querySelector('button[data-sidebar-toggle], button[data-sidebar-opener]')
-        if (toggle !== null) toggle.click()
+        toggleOfficial()
+      }
+
+      /** 收起动画结束后把官方侧栏也收回去，左上角的「打开侧边栏」按钮才会重新出现。 */
+      function collapseOfficialAfterClose() {
+        if (!officialExpandedByUs) return
+        officialExpandedByUs = false
+        const target = frame ?? findFrame()
+        if (target === null || target.hasAttribute('data-sidebar-collapsed')) return
+        toggleOfficial()
+      }
+
+      /** 官方左上角「打开侧边栏」/侧栏内折叠按钮在移动模式下接管：和圆形按钮同一套开合。 */
+      function onOfficialToggleClick(event) {
+        if (!active || bypassOfficialToggle) return
+        const button = event.target?.closest?.('button[data-sidebar-opener], button[data-sidebar-toggle]')
+        if (button === null || button === undefined) return
+        event.preventDefault()
+        event.stopImmediatePropagation()
+        if (drawerOpen) closeDrawer()
+        else openDrawer()
       }
 
       function sync() {
@@ -941,6 +965,7 @@ window.__ModuleLoader__.load({
             scrim.hidden = true
           }
           sync()
+          collapseOfficialAfterClose()
         }, 180)
       }
 
@@ -1006,6 +1031,7 @@ window.__ModuleLoader__.load({
         observer.observe(document.body, { childList: true, subtree: true })
         window.addEventListener('resize', onEnvironmentChange)
         document.addEventListener('keydown', onKeyDown, true)
+        document.addEventListener('click', onOfficialToggleClick, true)
         if (media !== null) {
           if (typeof media.addEventListener === 'function') media.addEventListener('change', onEnvironmentChange)
           else if (typeof media.addListener === 'function') media.addListener(onEnvironmentChange)
@@ -1016,6 +1042,7 @@ window.__ModuleLoader__.load({
             observer.disconnect()
             window.removeEventListener('resize', onEnvironmentChange)
             document.removeEventListener('keydown', onKeyDown, true)
+            document.removeEventListener('click', onOfficialToggleClick, true)
             if (media !== null) {
               if (typeof media.removeEventListener === 'function') media.removeEventListener('change', onEnvironmentChange)
               else if (typeof media.removeListener === 'function') media.removeListener(onEnvironmentChange)
