@@ -238,6 +238,7 @@ window.__ModuleLoader__.load({
       browse: '<path d="M4 9h16l-1.2 9.2a2 2 0 0 1-2 1.8H7.2a2 2 0 0 1-2-1.8L4 9Z"/><path d="M9 9V6.5a3 3 0 0 1 6 0V9"/>',
       create: '<path d="M12 5v14M5 12h14"/>',
       mobile: '<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M10.5 18.5h3"/>',
+      panelLeft: '<rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M9.5 4.5v15"/>',
       menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
       fallback: '<rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/>',
     }
@@ -632,6 +633,20 @@ window.__ModuleLoader__.load({
       }
       .st-ml-fab:active { background: var(--dsw-alias-button-floating-hover, var(--dsw-alias-interactive-bg-hover)); }
       .st-ml-fab[hidden] { display: none; }
+      /* 宽屏/官方 leading 座位不渲染时，用它顶替左上角「打开侧边栏」按钮。 */
+      .st-ml-topbar {
+        position: fixed; top: calc(var(--dsh-frame-top-clearance, 0px) + 11px);
+        left: calc(12px + env(safe-area-inset-left, 0px)); z-index: 31;
+        display: grid; place-items: center; width: 28px; height: 28px; padding: 0;
+        border: 0; border-radius: 8px; background: transparent;
+        color: var(--dsw-alias-label-secondary, #61666b); cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .st-ml-topbar:hover { color: var(--dsw-alias-label-primary, #0f1115);
+        background: var(--dsw-alias-interactive-bg-hover, rgba(127,127,127,.1)); }
+      .st-ml-topbar:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary);
+        outline-offset: -2px; }
+      .st-ml-topbar[hidden] { display: none; }
       .st-ml-scrim {
         position: fixed; inset: 0; z-index: 25; background: rgba(0, 0, 0, .36);
         touch-action: none; animation: st-ml-scrim-in 160ms ease-out;
@@ -676,6 +691,7 @@ window.__ModuleLoader__.load({
       let frame = null
       let markedFrame = null
       let fab = null
+      let topbar = null
       let scrim = null
       let styleTag = null
       let syncTimer = null
@@ -800,6 +816,7 @@ window.__ModuleLoader__.load({
 
       function removeChrome() {
         if (fab !== null) { fab.remove(); fab = null }
+        if (topbar !== null) { topbar.remove(); topbar = null }
         if (scrim !== null) { scrim.remove(); scrim = null }
       }
 
@@ -816,6 +833,14 @@ window.__ModuleLoader__.load({
           fab.style.setProperty('corner-shape', 'round', 'important')
           fab.addEventListener('click', openDrawer)
         }
+        if (topbar === null) {
+          topbar = document.createElement('button')
+          topbar.type = 'button'
+          topbar.className = 'st-ml-topbar'
+          topbar.dataset.role = 'sidebar-tidy-mobile-topbar'
+          topbar.innerHTML = icon('panelLeft')
+          topbar.addEventListener('click', openDrawer)
+        }
         if (scrim === null) {
           scrim = document.createElement('div')
           scrim.className = 'st-ml-scrim'
@@ -824,7 +849,20 @@ window.__ModuleLoader__.load({
           scrim.addEventListener('click', closeDrawer)
         }
         if (fab.parentElement === null) document.body.appendChild(fab)
+        if (topbar.parentElement === null) document.body.appendChild(topbar)
         if (scrim.parentElement === null) document.body.appendChild(scrim)
+      }
+
+      /** 官方 leading 座位只在抽屉/darwin 场景挂载；宽屏时用它顶替左上角按钮。 */
+      function officialOpenerVisible() {
+        const button = document.querySelector('button[data-sidebar-opener]')
+        if (button === null) return false
+        const rect = button.getBoundingClientRect()
+        if (rect.width <= 0 || rect.height <= 0) return false
+        const style = getComputedStyle(button)
+        if (style.visibility === 'hidden' || style.display === 'none' || Number(style.opacity) <= 0.05) return false
+        const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)
+        return hit === button || button.contains(hit)
       }
 
       /** 调官方 toggle（优先 layout service；回退点击时绕过我们自己的捕获拦截）。 */
@@ -901,9 +939,15 @@ window.__ModuleLoader__.load({
         createChrome()
         scrim.hidden = !drawerOpen
         fab.hidden = drawerOpen
+        // 先藏掉自己的替代按钮，避免 elementFromPoint 命中它而误判官方按钮可见。
+        topbar.hidden = true
+        const officialVisible = officialOpenerVisible()
+        topbar.hidden = drawerOpen || officialVisible
         const label = textFor(ctx, '打开侧边栏', 'Open sidebar')
         if (fab.getAttribute('aria-label') !== label) fab.setAttribute('aria-label', label)
         if (fab.getAttribute('title') !== label) fab.setAttribute('title', label)
+        if (topbar.getAttribute('aria-label') !== label) topbar.setAttribute('aria-label', label)
+        if (topbar.getAttribute('title') !== label) topbar.setAttribute('title', label)
         markColumns(frame)
       }
 
