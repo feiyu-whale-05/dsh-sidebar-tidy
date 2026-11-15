@@ -518,6 +518,23 @@ window.__ModuleLoader__.load({
         width:6px;height:6px;border-right:1.6px solid currentColor;border-bottom:1.6px solid currentColor;
         opacity:.55;transform:translateY(-70%) rotate(45deg);transition:transform .16s ease;pointer-events:none}
       nav button[aria-haspopup="menu"].st-more-open::after{transform:translateY(-30%) rotate(225deg)}
+      /* 设置 → 通用 里的「移动布局」行，外观对齐 DSH 的 PreferenceRow。 */
+      .st-settings-row{display:flex;align-items:center;gap:8px;padding:16px 0;
+        border-bottom:.5px solid var(--dsw-alias-border-l2,rgba(127,127,127,.2))}
+      .st-settings-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;padding-right:48px}
+      .st-settings-title{font-size:14px;font-weight:400;line-height:22px;color:var(--dsw-alias-label-primary,#0f1115)}
+      .st-settings-desc{font-size:12px;font-weight:400;line-height:18px;color:var(--dsw-alias-label-tertiary,#8a8f98)}
+      .st-settings-control{position:relative;flex:none}
+      .st-settings-select{appearance:none;-webkit-appearance:none;height:36px;padding:0 34px 0 14px;border:0;
+        border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-module-platform,#f2f3f5);
+        color:var(--dsw-alias-label-primary,#0f1115);font:inherit;font-size:14px;line-height:22px;cursor:pointer}
+      .st-settings-select:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.12))}
+      .st-settings-select:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary,#4d6bfe);outline-offset:2px}
+      .st-settings-control::after{content:"";position:absolute;right:13px;top:50%;width:6px;height:6px;
+        border-right:1.6px solid var(--dsw-alias-label-secondary,#61666b);
+        border-bottom:1.6px solid var(--dsw-alias-label-secondary,#61666b);
+        transform:translateY(-70%) rotate(45deg);pointer-events:none}
+      @media (max-width:767px){.st-settings-text{padding-right:16px}}
     `
 
     function ensureStyle() {
@@ -700,6 +717,7 @@ window.__ModuleLoader__.load({
       let syncTimer = null
       let missingTimer = null
       let missingRetries = 0
+      const modeListeners = new Set()
       let officialExpandedByUs = false
       let bypassOfficialToggle = false
       let observations = null
@@ -1087,6 +1105,7 @@ window.__ModuleLoader__.load({
         }
         return () => {
           disposed = true
+          modeListeners.clear()
           observations?.stop()
           observations = null
           deactivate(true)
@@ -1097,11 +1116,30 @@ window.__ModuleLoader__.load({
 
       function cycleMode() {
         const index = MOBILE_MODES.indexOf(mode)
-        mode = MOBILE_MODES[(index + 1) % MOBILE_MODES.length]
+        return setMode(MOBILE_MODES[(index + 1) % MOBILE_MODES.length])
+      }
+
+      /** 设置页与「更多」共用：持久化、立即生效、通知订阅者。 */
+      function setMode(next) {
+        if (!MOBILE_MODES.includes(next) || next === mode) return mode
+        mode = next
         writeMobileMode(mode)
         log('info', 'mobile.mode', '切换移动布局模式', { mode })
+        for (const listener of modeListeners) {
+          try {
+            listener()
+          } catch {
+            // 单个订阅者出错不影响布局切换
+          }
+        }
         reconcile()
         return mode
+      }
+
+      /** React useSyncExternalStore 的订阅入口。 */
+      function subscribeMode(listener) {
+        modeListeners.add(listener)
+        return () => { modeListeners.delete(listener) }
       }
 
       function modeText() {
@@ -1113,14 +1151,67 @@ window.__ModuleLoader__.load({
       return {
         start,
         cycleMode,
+        setMode,
+        subscribeMode,
         modeText,
         getMode: () => mode,
         isActive: () => active,
       }
     }
 
+    // ── 设置 → 通用：移动布局 ─────────────────────────────────────────
+    /** 通用设置里的一行；读/写 mobileLayout，useSyncExternalStore 保证选择器同步。 */
+    function MobileLayoutSettingsRow({ getMode, setMode, subscribeMode, zh }) {
+      const mode = React.useSyncExternalStore(subscribeMode, getMode, getMode)
+      const labels = zh
+        ? {
+            title: '移动布局',
+            desc: '侧栏收起为左侧抽屉；控制移动布局在哪些窗口宽度启用。',
+            always: '始终启用',
+            auto: '仅窄屏（≤1023px）',
+            off: '关闭',
+          }
+        : {
+            title: 'Mobile layout',
+            desc: 'Collapse the sidebar into a left drawer; choose where the mobile layout applies.',
+            always: 'Always',
+            auto: 'Narrow screens only (≤1023px)',
+            off: 'Off',
+          }
+      return h('div', { className: 'st-settings-row', 'data-role': 'sidebar-tidy-mobile-setting' },
+        h('div', { className: 'st-settings-text' },
+          h('div', { className: 'st-settings-title' }, labels.title),
+          h('div', { className: 'st-settings-desc' }, labels.desc)),
+        h('div', { className: 'st-settings-control' },
+          h('select', {
+            className: 'st-settings-select',
+            value: mode,
+            'aria-label': labels.title,
+            onChange: (event) => { setMode(event.currentTarget.value) },
+          },
+          h('option', { value: 'always' }, labels.always),
+          h('option', { value: 'auto' }, labels.auto),
+          h('option', { value: 'off' }, labels.off))))
+    }
+
+    /** 只在 General 设置页挂载时注册；页面卸载由 slots.inject 自动清理。 */
+    function registerMobileSettings(ctx, mobileLayout) {
+      const zh = isChinese(ctx)
+      ctx.slots.inject('settings.general.item', () => ctx.slots.register({
+        name: 'settings.general.item',
+        id: 'dsh-sidebar-tidy-mobile-layout',
+        order: 13,
+        inject: () => ({
+          getMode: mobileLayout.getMode,
+          setMode: mobileLayout.setMode,
+          subscribeMode: mobileLayout.subscribeMode,
+          zh,
+        }),
+      }, MobileLayoutSettingsRow))
+    }
+
     // ── 「更多」内嵌下拉 ───────────────────────────────────────────────
-    function createDropdown(ctx, mobileLayout) {
+    function createDropdown(ctx) {
       let list = null          // 列表根节点（内嵌 div 或 rail 浮层）
       let anchorButton = null
       let suppressClickUntil = 0
@@ -1473,14 +1564,6 @@ window.__ModuleLoader__.load({
         gap.style.height = '2px'
         list.appendChild(gap)
 
-        // 移动布局模式（融合自 web 侧 dsh-mobile-layout）：点一次循环
-        // auto → always → off，持久化到 localStorage。
-        list.appendChild(actionRow('mobile', mobileLayout.modeText(), () => {
-          const next = mobileLayout.cycleMode()
-          render()
-          log('info', 'more.mobile', '切换移动布局模式', { mode: next })
-        }))
-
         const navigation = optionalService('pluginNavigation')
         if (navigation !== null && typeof navigation.openList === 'function') {
           list.appendChild(actionRow('browse', labelFor('浏览更多插件', 'Browse more plugins'), () => {
@@ -1788,7 +1871,8 @@ window.__ModuleLoader__.load({
         logCtx = ctx
         ctx.effect(() => ensureStyle(), 'sidebar-tidy: styles')
         const mobileLayout = createMobileLayout(ctx)
-        const dropdown = createDropdown(ctx, mobileLayout)
+        registerMobileSettings(ctx, mobileLayout)
+        const dropdown = createDropdown(ctx)
         log('info', 'plugin.apply', '客户端半侧已激活', {
           version: PLUGIN_VERSION,
           keep: [...KEEP],
