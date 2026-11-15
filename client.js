@@ -534,6 +534,17 @@ window.__ModuleLoader__.load({
         border-right:1.6px solid var(--dsw-alias-label-secondary,#61666b);
         border-bottom:1.6px solid var(--dsw-alias-label-secondary,#61666b);
         transform:translateY(-70%) rotate(45deg);pointer-events:none}
+      .st-settings-menu{position:fixed;z-index:2147483000;min-width:200px;max-width:320px;padding:4px;
+        background:var(--dsw-alias-bg-layer-2,#fff);color:var(--dsw-alias-label-primary,#0f1115);
+        border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.25));border-radius:10px;
+        box-shadow:0 12px 32px rgba(0,0,0,.28)}
+      .st-settings-option{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;
+        padding:8px 10px;border:0;border-radius:6px;background:transparent;
+        color:var(--dsw-alias-label-primary,#0f1115);font:inherit;font-size:13px;line-height:20px;
+        text-align:left;cursor:pointer}
+      .st-settings-option:hover,.st-settings-option:focus-visible{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.12));outline:none}
+      .st-settings-option[data-selected="true"]{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.12))}
+      .st-settings-check{flex:none;color:var(--dsw-alias-state-business-primary,#4d6bfe)}
       @media (max-width:767px){.st-settings-text{padding-right:16px}}
     `
 
@@ -1234,6 +1245,10 @@ window.__ModuleLoader__.load({
     /** 通用设置里的一行；读/写 mobileLayout，useSyncExternalStore 保证选择器同步。 */
     function MobileLayoutSettingsRow({ getMode, setMode, subscribeMode, zh }) {
       const mode = React.useSyncExternalStore(subscribeMode, getMode, getMode)
+      const [open, setOpen] = React.useState(false)
+      const [placement, setPlacement] = React.useState(null)
+      const triggerRef = React.useRef(null)
+      const menuRef = React.useRef(null)
       const labels = zh
         ? {
             title: '移动布局',
@@ -1249,20 +1264,97 @@ window.__ModuleLoader__.load({
             auto: 'Narrow screens only (≤1023px)',
             off: 'Off',
           }
+      const options = [
+        { id: 'always', label: labels.always },
+        { id: 'auto', label: labels.auto },
+        { id: 'off', label: labels.off },
+      ]
+      React.useEffect(() => {
+        if (!open) return undefined
+        const closeOnOutside = (event) => {
+          if (triggerRef.current?.contains(event.target) || menuRef.current?.contains(event.target)) return
+          setOpen(false)
+        }
+        const closeOnEscape = (event) => {
+          if (event.key !== 'Escape') return
+          setOpen(false)
+          triggerRef.current?.focus()
+        }
+        const closeOnScroll = () => { setOpen(false) }
+        document.addEventListener('mousedown', closeOnOutside, true)
+        document.addEventListener('keydown', closeOnEscape, true)
+        window.addEventListener('resize', closeOnScroll)
+        document.addEventListener('scroll', closeOnScroll, true)
+        return () => {
+          document.removeEventListener('mousedown', closeOnOutside, true)
+          document.removeEventListener('keydown', closeOnEscape, true)
+          window.removeEventListener('resize', closeOnScroll)
+          document.removeEventListener('scroll', closeOnScroll, true)
+        }
+      }, [open])
+      const toggle = () => {
+        if (open) {
+          setOpen(false)
+          return
+        }
+        const rect = triggerRef.current?.getBoundingClientRect()
+        if (rect === undefined) return
+        const width = 220
+        const menuHeight = 138
+        const below = window.innerHeight - rect.bottom
+        setPlacement({
+          left: Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)),
+          top: below >= menuHeight ? rect.bottom + 6 : Math.max(8, rect.top - menuHeight - 6),
+        })
+        setOpen(true)
+      }
+      const choose = (next) => {
+        setMode(next)
+        setOpen(false)
+        triggerRef.current?.focus()
+      }
+      const menu = open && placement !== null
+        ? h('div', {
+            ref: menuRef,
+           className: 'st-settings-menu',
+            role: 'listbox',
+            'aria-label': labels.title,
+            style: { left: `${placement.left}px`, top: `${placement.top}px` },
+          }, options.map(option => h('button', {
+            key: option.id,
+            type: 'button',
+            role: 'option',
+            className: 'st-settings-option',
+            'aria-selected': mode === option.id,
+            'data-selected': mode === option.id ? 'true' : 'false',
+            onClick: () => { choose(option.id) },
+          },
+          h('span', null, option.label),
+          mode === option.id
+            ? h('span', { className: 'st-settings-check', 'aria-hidden': 'true' }, '✓')
+            : null)))
+        : null
+      const modules = reactDom()
+      const menuNode = menu === null
+        ? null
+        : modules !== null && typeof modules.dom.createPortal === 'function'
+          ? modules.dom.createPortal(menu, document.body)
+          : menu
       return h('div', { className: 'st-settings-row', 'data-role': 'sidebar-tidy-mobile-setting' },
         h('div', { className: 'st-settings-text' },
           h('div', { className: 'st-settings-title' }, labels.title),
           h('div', { className: 'st-settings-desc' }, labels.desc)),
         h('div', { className: 'st-settings-control' },
-          h('select', {
+          h('button', {
+            ref: triggerRef,
+            type: 'button',
             className: 'st-settings-select',
-            value: mode,
+            'aria-haspopup': 'listbox',
+            'aria-expanded': open,
             'aria-label': labels.title,
-            onChange: (event) => { setMode(event.currentTarget.value) },
-          },
-          h('option', { value: 'always' }, labels.always),
-          h('option', { value: 'auto' }, labels.auto),
-          h('option', { value: 'off' }, labels.off))))
+            onClick: toggle,
+          }, labels[mode])),
+        menuNode)
     }
 
     /** 只在 General 设置页挂载时注册；页面卸载由 slots.inject 自动清理。 */
