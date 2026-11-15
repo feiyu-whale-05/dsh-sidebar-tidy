@@ -238,7 +238,7 @@ window.__ModuleLoader__.load({
       browse: '<path d="M4 9h16l-1.2 9.2a2 2 0 0 1-2 1.8H7.2a2 2 0 0 1-2-1.8L4 9Z"/><path d="M9 9V6.5a3 3 0 0 1 6 0V9"/>',
       create: '<path d="M12 5v14M5 12h14"/>',
       mobile: '<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M10.5 18.5h3"/>',
-      panelLeft: '<rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M9.5 4.5v15"/>',
+      panelLeft: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9.5 4v16"/>',
       menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
       fallback: '<rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/>',
     }
@@ -676,6 +676,7 @@ window.__ModuleLoader__.load({
       .st-ml-topbar:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary);
         outline-offset: -2px; }
       .st-ml-topbar[hidden] { display: none; }
+      .st-ml-topbar > svg { display: block; width: 16px; height: 16px; }
       /* 官方 leading 座位在 Windows 位于标题栏（frame 的 padding-top 区域）；
          移动模式统一用标题栏同一行的替代按钮，避免收起时按钮跳到另一行。 */
       .st-ml-on button[data-sidebar-opener] { visibility: hidden !important; }
@@ -876,7 +877,7 @@ window.__ModuleLoader__.load({
           topbar.type = 'button'
           topbar.className = 'st-ml-topbar'
           topbar.dataset.role = 'sidebar-tidy-mobile-topbar'
-          topbar.innerHTML = icon('panelLeft')
+          topbar.innerHTML = officialPanelIconMarkup() ?? icon('panelLeft')
           topbar.addEventListener('click', openDrawer)
         }
         if (scrim === null) {
@@ -889,6 +890,23 @@ window.__ModuleLoader__.load({
         if (fab.parentElement === null) document.body.appendChild(fab)
         if (topbar.parentElement === null) document.body.appendChild(topbar)
         if (scrim.parentElement === null) document.body.appendChild(scrim)
+      }
+
+      /** 官方 panel-left 图标的实时 SVG（优先复用 DSH 图标精灵，避免自绘比例偏扁）。 */
+      function officialPanelIconMarkup() {
+        const svg = document.querySelector(
+          'button[data-sidebar-toggle] svg, button[data-sidebar-opener] svg, [data-sidebar-right-expand] svg',
+        )
+        return svg === null ? null : svg.outerHTML
+      }
+
+      /** 顶栏按钮出现得比侧栏早时，等官方按钮挂载后再把图标换成官方 SVG。 */
+      function syncTopbarIcon() {
+        if (topbar === null || topbar.dataset.officialIcon === 'true') return
+        const markup = officialPanelIconMarkup()
+        if (markup === null) return
+        topbar.innerHTML = markup
+        topbar.dataset.officialIcon = 'true'
       }
 
       /** 调官方 toggle（优先 layout service；回退点击时绕过我们自己的捕获拦截）。 */
@@ -963,6 +981,7 @@ window.__ModuleLoader__.load({
         frame.classList.toggle('st-ml-open', drawerOpen)
         document.documentElement.classList.add('st-ml-on')
         createChrome()
+        syncTopbarIcon()
         scrim.hidden = !drawerOpen
         fab.hidden = drawerOpen
         topbar.hidden = drawerOpen
