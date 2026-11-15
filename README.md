@@ -25,7 +25,7 @@ DSH Web 左侧栏精简 + 移动抽屉布局插件（`0.2.2-rc.3`，与当前 DS
 
 左上角官方「打开侧边栏」按钮与圆形 FAB 共用一套开合逻辑：移动模式下点它打开抽屉；抽屉打开后点侧栏内的折叠按钮，会走同样的 180ms 滑出动画。抽屉收起时会同步收回官方侧栏，左上角按钮保持可见，不会出现「按钮消失 / 点了又奇怪地收回」。
 
-官方 `shell.leading` 座位在 Windows 位于标题栏（frame 的 `padding-top` 区域），收起侧栏时直接用它会让按钮位置不稳定。移动模式统一隐藏官方 opener，使用固定在标题栏同一行（`top: 0`、36×36）的同图标按钮；它和「应用 / 编辑」处在同一行、位于最左侧，高度与标题栏行一致，关闭/打开侧栏不会跳到下面一行。按钮图标直接复用官方 `IconPanelLeft` 的 SVG（16×16，固定宽高，不会被拉伸压扁），并带 `-webkit-app-region: no-drag`，在窗口标题栏区域也能点击。
+官方 `shell.leading` 座位在 Windows 位于标题栏（frame 的 `padding-top` 区域），收起侧栏时直接用它会让按钮位置不稳定。移动模式统一隐藏官方 opener，使用固定在标题栏同一行（`top: 4px`、`left: 8px`、36×36）的同图标按钮；它和「应用 / 编辑」处在同一行、位于最左侧，高度与标题栏行一致，关闭/打开侧栏不会跳到下面一行。按钮图标直接复用官方 `IconPanelLeft` 的 SVG（16×16，固定宽高，不会被拉伸压扁），并带 `-webkit-app-region: no-drag`，在窗口标题栏区域也能点击。
 
 实现使用 0.2.2-rc.3 的稳定锚点：`[data-shell-overlay]`、`[data-sidebar-toggle]` / `[data-sidebar-opener]`、`data-sidebar-collapsed`、`data-sidebar-right-panel` / `data-sidebar-right-open`、`[data-composer-card]`；不依赖哈希类名、不写死 0.1.2 的中文文案。
 

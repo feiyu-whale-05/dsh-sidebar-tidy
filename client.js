@@ -663,8 +663,8 @@ window.__ModuleLoader__.load({
       .st-ml-fab[hidden] { display: none; }
       /* 宽屏/官方 leading 座位不渲染时，用它顶替左上角「打开侧边栏」按钮。 */
       .st-ml-topbar {
-        position: fixed; top: 0;
-        left: calc(12px + env(safe-area-inset-left, 0px)); z-index: 31;
+        position: fixed; top: 4px;
+        left: calc(8px + env(safe-area-inset-left, 0px)); z-index: 31;
         box-sizing: border-box;
         display: grid; place-items: center; width: 36px; height: 36px; padding: 0;
         border: 0; border-radius: 8px; background: transparent;
