@@ -499,7 +499,9 @@ window.__ModuleLoader__.load({
       /* 把「插件 / Superagent / … / 更多」这一段钉在侧栏顶部：
          工作区/会话列表在下面滚动，品牌行和新会话本来就在滚动区外面。
          sticky 只在滚动容器里让出空间；背景必须实心，避免会话行透出来。 */
-      nav.st-pinned {
+      nav.st-pinned,
+      [data-sidebar-scrollport] > nav,
+      [data-sidebar-scrollport] nav:has(button[aria-haspopup="menu"]) {
         position: sticky;
         /* 滚动区顶部本来有 8px 的空隙（scrollArea 的第一行）；贴到 0 会在开始
            滚动时把面板区整体向上顶 8px，看起来就是「抖一下」。保持 8px 并
