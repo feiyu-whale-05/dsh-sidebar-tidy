@@ -500,10 +500,14 @@ window.__ModuleLoader__.load({
          sticky 只在滚动容器里让出空间；背景必须实心，避免会话行透出来。 */
       nav.st-pinned {
         position: sticky;
-        top: 0;
+        /* 滚动区顶部本来有 8px 的空隙（scrollArea 的第一行）；贴到 0 会在开始
+           滚动时把面板区整体向上顶 8px，看起来就是「抖一下」。保持 8px 并
+           用负向阴影盖住这 8px，滚动前后面板行的位置完全不变。 */
+        top: 8px;
         z-index: 4;
         background: var(--dsw-specific-sidebar-fill, var(--dsw-alias-bg-base, #fff));
         box-shadow:
+          0 -8px 0 var(--dsw-specific-sidebar-fill, var(--dsw-alias-bg-base, #fff)),
           0 1px 0 var(--dsw-alias-border-l1, rgba(0, 0, 0, .06)),
           0 9px 0 var(--dsw-specific-sidebar-fill, var(--dsw-alias-bg-base, #fff));
       }
