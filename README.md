@@ -25,7 +25,7 @@ DSH Web 左侧栏精简 + 移动抽屉布局插件（`0.2.2-rc.3`，与当前 DS
 
 左上角官方「打开侧边栏」按钮与圆形 FAB 共用一套开合逻辑：移动模式下点它打开抽屉；抽屉打开后点侧栏内的折叠按钮，会走同样的 180ms 滑出动画。抽屉收起时会同步收回官方侧栏，左上角按钮保持可见，不会出现「按钮消失 / 点了又奇怪地收回」。
 
-官方 `shell.leading` 座位在 Windows 位于标题栏（frame 的 `padding-top` 区域），收起侧栏时直接用它会让按钮“跳到标题栏”。移动模式统一隐藏官方 opener，改用固定在**内容顶栏**（`--dsh-frame-top-clearance + 11px`）的同图标按钮；宽窄屏位置一致，关闭/打开不会跳位。
+官方 `shell.leading` 座位在 Windows 位于标题栏（frame 的 `padding-top` 区域），收起侧栏时直接用它会让按钮“跳到标题栏”。移动模式统一隐藏官方 opener，并把打开按钮注册进 `conversation.header.leading`（对话顶栏 leading 座位），和标题 / 应用 / 编辑等顶栏内容处于同一行；只有页面没有对话顶栏时才退回 fixed 兜底按钮。
 
 实现使用 0.2.2-rc.3 的稳定锚点：`[data-shell-overlay]`、`[data-sidebar-toggle]` / `[data-sidebar-opener]`、`data-sidebar-collapsed`、`data-sidebar-right-panel` / `data-sidebar-right-open`、`[data-composer-card]`；不依赖哈希类名、不写死 0.1.2 的中文文案。
 

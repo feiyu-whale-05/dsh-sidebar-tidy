@@ -664,9 +664,25 @@ window.__ModuleLoader__.load({
       .st-ml-topbar:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary);
         outline-offset: -2px; }
       .st-ml-topbar[hidden] { display: none; }
+      /* 对话顶栏按钮存在时，不再显示 fixed 兜底按钮，避免两个入口。 */
+      html:has(.st-ml-header-opener) .st-ml-topbar { display: none !important; }
+      /* 对话顶栏 leading 座位里的打开按钮：和标题/应用/编辑同一行。 */
+      .st-ml-header-opener {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px;
+        background: transparent; color: var(--dsw-alias-label-secondary, #61666b);
+        cursor: pointer; -webkit-app-region: no-drag; -webkit-tap-highlight-color: transparent;
+      }
+      .st-ml-header-opener:hover { color: var(--dsw-alias-label-primary, #0f1115);
+        background: var(--dsw-alias-interactive-bg-hover, rgba(127,127,127,.1)); }
+      .st-ml-header-opener:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary);
+        outline-offset: -2px; }
       /* 官方 leading 座位在 Windows 位于标题栏（frame 的 padding-top 区域）；
          移动模式统一用内容顶栏里的替代按钮，避免收起时按钮跳到标题栏。 */
       .st-ml-on button[data-sidebar-opener] { visibility: hidden !important; }
+      /* 隐藏了按钮但 seat 容器仍会拦截点击：让容器穿透，保留其它控件可点。 */
+      .st-ml-on [data-shell-leading] { pointer-events: none !important; }
+      .st-ml-on [data-shell-leading] button:not([data-sidebar-opener]) { pointer-events: auto; }
       .st-ml-scrim {
         position: fixed; inset: 0; z-index: 25; background: rgba(0, 0, 0, .36);
         touch-action: none; animation: st-ml-scrim-in 160ms ease-out;
@@ -718,6 +734,8 @@ window.__ModuleLoader__.load({
       let missingTimer = null
       let missingRetries = 0
       const modeListeners = new Set()
+      const uiListeners = new Set()
+      let uiSnapshot = { active: false, open: false }
       let officialExpandedByUs = false
       let bypassOfficialToggle = false
       let observations = null
@@ -948,7 +966,7 @@ window.__ModuleLoader__.load({
         createChrome()
         scrim.hidden = !drawerOpen
         fab.hidden = drawerOpen
-        topbar.hidden = drawerOpen
+        topbar.hidden = drawerOpen || document.querySelector('.st-ml-header-opener') !== null
         const label = textFor(ctx, '打开侧边栏', 'Open sidebar')
         if (fab.getAttribute('aria-label') !== label) fab.setAttribute('aria-label', label)
         if (fab.getAttribute('title') !== label) fab.setAttribute('title', label)
@@ -987,6 +1005,23 @@ window.__ModuleLoader__.load({
         }, 120)
       }
 
+      /** 顶栏按钮订阅：active（移动布局是否启用）和 open（抽屉是否打开）。 */
+      function refreshUi() {
+        uiSnapshot = { active, open: drawerOpen }
+        for (const listener of uiListeners) {
+          try {
+            listener()
+          } catch {
+            // 单个订阅者出错不影响布局
+          }
+        }
+      }
+
+      function subscribeUi(listener) {
+        uiListeners.add(listener)
+        return () => { uiListeners.delete(listener) }
+      }
+
       function openDrawer() {
         if (!active) return
         if (closeTimer !== null) {
@@ -999,6 +1034,7 @@ window.__ModuleLoader__.load({
         drawerOpen = true
         sync()
         requestOfficialExpand()
+        refreshUi()
         log('info', 'mobile.open', '打开移动侧栏抽屉', { mode })
       }
 
@@ -1020,6 +1056,7 @@ window.__ModuleLoader__.load({
           }
           sync()
           collapseOfficialAfterClose()
+          refreshUi()
         }, 180)
       }
 
@@ -1033,6 +1070,7 @@ window.__ModuleLoader__.load({
         missingRetries = 0
         ensureStyle()
         document.documentElement.classList.add('st-ml-on')
+        refreshUi()
         log('info', 'mobile.activate', '启用移动抽屉布局', { mode, media: media?.matches === true })
         scheduleSync()
       }
@@ -1052,6 +1090,7 @@ window.__ModuleLoader__.load({
         frame = null
         removeChrome()
         document.documentElement.classList.remove('st-ml-on')
+        refreshUi()
         if (restore) restoreOfficial()
         else officialExpandedByUs = false
         if (missingTimer !== null) {
@@ -1106,6 +1145,7 @@ window.__ModuleLoader__.load({
         return () => {
           disposed = true
           modeListeners.clear()
+          uiListeners.clear()
           observations?.stop()
           observations = null
           deactivate(true)
@@ -1153,10 +1193,41 @@ window.__ModuleLoader__.load({
         cycleMode,
         setMode,
         subscribeMode,
+        open: openDrawer,
+        subscribeUi,
+        getUiSnapshot: () => uiSnapshot,
         modeText,
         getMode: () => mode,
         isActive: () => active,
       }
+    }
+
+    // ── 对话顶栏：打开侧边栏 ───────────────────────────────────────────
+    /** 注册到 conversation.header.leading，和标题/应用/编辑同一行。 */
+    function MobileHeaderOpener({ subscribeUi, getUiSnapshot, open, label }) {
+      const state = React.useSyncExternalStore(subscribeUi, getUiSnapshot, getUiSnapshot)
+      if (!state.active || state.open) return null
+      return h('button', {
+        type: 'button',
+        className: 'st-ml-header-opener',
+        'data-role': 'sidebar-tidy-header-opener',
+        'aria-label': label,
+        title: label,
+        onClick: open,
+      }, h('span', { 'aria-hidden': 'true', dangerouslySetInnerHTML: { __html: icon('panelLeft') } }))
+    }
+
+    function registerMobileHeader(ctx, mobileLayout) {
+      const label = textFor(ctx, '打开侧边栏', 'Open sidebar')
+      ctx.slots.inject('conversation.header.leading', () => ctx.slots.register({
+        name: 'conversation.header.leading',
+        inject: () => ({
+          subscribeUi: mobileLayout.subscribeUi,
+          getUiSnapshot: mobileLayout.getUiSnapshot,
+          open: mobileLayout.open,
+          label,
+        }),
+      }, MobileHeaderOpener))
     }
 
     // ── 设置 → 通用：移动布局 ─────────────────────────────────────────
@@ -1872,6 +1943,7 @@ window.__ModuleLoader__.load({
         ctx.effect(() => ensureStyle(), 'sidebar-tidy: styles')
         const mobileLayout = createMobileLayout(ctx)
         registerMobileSettings(ctx, mobileLayout)
+        registerMobileHeader(ctx, mobileLayout)
         const dropdown = createDropdown(ctx)
         log('info', 'plugin.apply', '客户端半侧已激活', {
           version: PLUGIN_VERSION,
