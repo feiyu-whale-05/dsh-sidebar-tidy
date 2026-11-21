@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "侧栏精简",
-    "description": "侧栏精简 + 移动抽屉：拖拽排序、收进更多、复用面板图标；可切换自动/始终/关闭移动布局。日志写入 D:\\DSH-plugins\\log\\dsh-sidebar-tidy。"
+    "description": "左侧栏精简 + 移动抽屉，并打包融合 DSH-better-sidebar 右侧工作台（文件树/编辑器/Git/任务/终端）。日志写入 D:\\DSH-plugins\\log\\dsh-sidebar-tidy。"
   }
 }

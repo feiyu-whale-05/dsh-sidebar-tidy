@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Sidebar Tidy",
-    "description": "Sidebar tidy + mobile drawer: drag reorder, More menu, real panel icons, and an auto/always/off mobile layout. Logs under D:\\DSH-plugins\\log\\dsh-sidebar-tidy."
+    "description": "Sidebar tidy + mobile drawer, bundled with the DSH-better-sidebar workbench (files, editor, Git, tasks, terminal). Logs under D:\\DSH-plugins\\log\\dsh-sidebar-tidy."
   }
 }

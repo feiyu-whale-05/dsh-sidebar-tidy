@@ -9,3 +9,9 @@
 - insert:
     - id: sidebar-tidy
       name: dsh-sidebar-tidy
+    # 打包融合：同一份 patch 同时挂载 dsh-better-sidebar（右侧工作台）。
+    # 它作为本插件的 dependency 安装；上游自带 bundle patch，避免 profile
+    # 再单独把它列进 bundles，否则会重复挂载 /sidebar/api 导致启动失败。
+    - id: better-sidebar
+      name: dsh-better-sidebar
+      disabled: !!js "[...ctx.loader.entries()].some((e) => e.options.name === 'dsh-better-sidebar' && e.options.id !== 'better-sidebar' && !e.disabled)"

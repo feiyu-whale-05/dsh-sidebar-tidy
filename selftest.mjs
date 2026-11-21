@@ -27,6 +27,14 @@ check('inject', JSON.stringify(mod.inject) === JSON.stringify(['slots', 'locale'
 check('version 与 DSH 一致', mod.version === '0.2.2-rc.3', mod.version)
 check('KEEP 默认五个面板', Array.isArray(mod.KEEP) && mod.KEEP.length === 5, mod.KEEP)
 
+// —— 打包融合：better-sidebar 作为依赖 + 同 patch 挂载 ——
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'))
+const patch = readFileSync(new URL('./cordis.patch.yml', import.meta.url), 'utf8')
+check('依赖 dsh-better-sidebar@0.32.1', pkg.dependencies?.['dsh-better-sidebar'] === '0.32.1',
+  pkg.dependencies?.['dsh-better-sidebar'])
+check('patch 同时挂载 better-sidebar', /- id:\s*better-sidebar[\s\S]*?name:\s*['"]?dsh-better-sidebar/.test(patch)
+  && /disabled:\s*!!js/.test(patch))
+
 // —— 金丝雀六条行为（常量 / 健康 / 冷启动 / 漂移 / 幂等 / 抖动）——
 const source = readFileSync(new URL('./client.js', import.meta.url), 'utf8')
 const canaryLimitMatch = /const CANARY_MISS_LIMIT = (\d+)/u.exec(source)

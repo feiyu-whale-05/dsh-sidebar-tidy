@@ -1,6 +1,10 @@
 # dsh-sidebar-tidy
 
-DSH Web 左侧栏精简 + 移动抽屉布局插件（`0.2.2-rc.3`，与当前 DSH 版本保持一致）。
+DSH Web 左侧栏精简 + 移动抽屉布局插件，并**打包融合 [DSH-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar)** 的右侧工作台（`0.2.2-rc.3`）。
+
+- 一次安装同时得到：左侧栏精简 / 拖拽 / 移动抽屉 + 右侧文件树、编辑器、Git、任务、侧聊、底部终端工作台
+- `dsh-better-sidebar` 作为本插件的 dependency 安装，并由同一个 `cordis.patch.yml` 挂载；不复制其源码，保留独立升级
+- 需要 DSH `0.2.2-rc.2+`（本插件当前针对 `0.2.2-rc.3`）
 
 ![移动布局预览](docs/preview.png)
 
@@ -10,6 +14,21 @@ DSH Web 左侧栏精简 + 移动抽屉布局插件（`0.2.2-rc.3`，与当前 DS
 - 图标：直接渲染面板注册在 `sidebar.panellist` 里的图标组件，第三方插件面板也能显示真实图标。
 - 主题：全部使用 `--dsw-alias-*` 主题 token，明暗模式共用一套样式（拖拽提示使用 tooltip 语义色，避免深色模式下白底白字）。
 - 移动布局：融合 WSL web 侧 `dsh-mobile-layout` 的抽屉/FAB/遮罩，并按当前 DSH 0.2.2-rc.3 的锚点重写；默认 `always`（任意宽度，复刻 WSL 插件），可在 **设置 → 通用 → 移动布局** 切到 `auto`（仅窄屏）或 `off`。
+
+## 打包融合 DSH-better-sidebar
+
+- 本插件 `package.json` 依赖 `dsh-better-sidebar@0.32.1`；`cordis.patch.yml` 在挂载 `sidebar-tidy` 的同一次 insert 中挂载 `better-sidebar`
+- 安装本插件时请使用 **`file:`**（或发布后的 npm 包）安装方式，pnpm 才会把它的 dependency 一并装进 profile：
+  ```sh
+  dsh plugin --profile desktop add file:D:/DSH-plugins/dsh-sidebar-tidy
+  ```
+  如果 profile 里用的是 `link:D:/...` 开发挂载，pnpm 不会自动安装 link 包的依赖，需要一次性补装：
+  ```sh
+  cd ~/.dsh/profiles/desktop && pnpm add dsh-better-sidebar@0.32.1 --save-exact
+  ```
+- **不要**再把 `dsh-better-sidebar` 单独加入 profile 的 `dsh.profile.bundles`，否则会重复挂载 `/sidebar/api` 并导致启动失败；本插件的 patch 已带 aggregate 防重复 guard
+- 修改 `cordis.patch.yml` 或安装 dependency 后需要重启 DSH 才会加载新的 bundle 组成；客户端改动刷新页面即可
+- 上游为 MIT，仓库：https://github.com/omdsh-dev/DSH-better-sidebar
 
 ## 移动抽屉布局（融合 WSL 侧插件）
 
