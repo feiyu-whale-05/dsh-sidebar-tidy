@@ -73,14 +73,14 @@ DSH Web 左侧栏精简 + 移动抽屉布局插件，并**打包融合 [DSH-bett
 日志由 Host 半侧写入：
 
 ```
-D:\DSH-plugins\log\dsh-sidebar-tidy\dsh-sidebar-tidy-YYYY-MM-DD.log
+D:\DSH-plugins\log\dsh-sidebar-tidy\host-YYYY-MM-DD.jsonl
 ```
 
-每天一个文件；单文件超过 4 MiB 时滚到 `*.log.1`（只保留一份备份）。每行格式：
+每行一个 JSON；单文件超过 5 MiB 时改名为 `host-YYYY-MM-DD.<timestamp>.jsonl`：
 
-```
-2026-11-14T14:40:00.123+08:00 | INFO  | host   | plugin.apply             | dsh-sidebar-tidy host half activated | {"version":"0.2.2-rc.3",...}
-2026-11-14T14:40:05.000+08:00 | INFO  | client | more.open                | 打开「更多」 | {"hidden":2,"rail":false} page={"id":"ab12cd34","path":"/","locale":"zh","dark":true}
+```json
+{"ts":"2026-11-14T06:40:00.123Z","app":"dsh-sidebar-tidy","level":"info","source":"host","event":"plugin.apply","msg":"dsh-sidebar-tidy host half activated","data":{"version":"0.2.2-rc.3"}}
+{"ts":"2026-11-14T06:40:05.000Z","app":"dsh-sidebar-tidy","level":"info","source":"client","event":"more.open","msg":"打开「更多」","data":{"hidden":2},"page":{"id":"ab12cd34","path":"/","locale":"zh","dark":true}}
 ```
 
 客户端通过 DSH 官方的 **Connection 共享 `/api` 通道**上报：
@@ -104,7 +104,7 @@ D:\DSH-plugins\log\dsh-sidebar-tidy\dsh-sidebar-tidy-YYYY-MM-DD.log
         logDir: 'D:/DSH-plugins/log/dsh-sidebar-tidy'
         enabled: true
         level: debug          # debug | info | warn | error
-        maxFileBytes: 4194304 # 4 MiB
+        maxFileBytes: 5242880 # 5 MiB
         maxRecords: 200       # 单次 RPC 最多接收条数
 ```
 

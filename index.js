@@ -3,7 +3,7 @@
  *
  * 这个插件的主体在浏览器端（client.js）。Host 半侧只负责一件事：
  * **把客户端日志落盘**，目录固定为
- *   {logDir}/dsh-sidebar-tidy-YYYY-MM-DD.log
+ *   {logDir}/host-YYYY-MM-DD.jsonl
  * 默认 logDir 为 `D:\DSH-plugins\log\dsh-sidebar-tidy`。
  *
  * 客户端 → Host 的通道使用 DSH 官方的 Connection 共享 `/api` 通道：
@@ -16,21 +16,22 @@
  * 用 Connection 服务自己的 Context 访问 `webServer`，该 Context 未注入
  * webServer，直接抛 `cannot get property "webServer" without inject`。
  *
- * 日志设计：
- *   - 每天一个文件；单文件超过 maxFileBytes 时滚到 `.1`（只保留一份备份）。
- *   - 每行一条：本地时间 | 级别 | 来源 | 事件 | 消息 | JSON 数据。
- *   - 客户端消息中的换行会被压平，避免伪造日志行；字段长度有上限。
+ * 日志设计（本机插件约定）：
+ *   - 每行一个 JSON；每天一个文件 host-YYYY-MM-DD.jsonl。
+ *   - 单文件超过 5 MiB 自动改名为 host-YYYY-MM-DD.<timestamp>.jsonl。
+ *   - 字段：ts / app / level / source / event / msg / data / page / clientTime。
+ *   - 客户端消息中的换行会被压平，避免伪造多行；字段长度有上限。
  *   - 目录/写入不可用时自动降级为 ctx.logger 控制台日志，不影响插件本身。
  *
- * 配置（cordis.patch.yml 的 config，可选）：
+ * 配置（cordis.patch.yml 的 config）：
  *   logDir        日志目录；默认 D:/DSH-plugins/log/dsh-sidebar-tidy
  *   enabled       false 关闭文件日志
  *   level         debug | info | warn | error，默认 debug
- *   maxFileBytes  单文件上限，默认 4 MiB（256 KiB – 128 MiB）
+ *   maxFileBytes  单文件上限，默认 5 MiB（256 KiB – 128 MiB）
  *   maxRecords    单次 RPC 最多接收多少条，默认 200（1 – 500）
  */
 
-import { appendFileSync, existsSync, mkdirSync, renameSync, statSync, unlinkSync } from 'node:fs'
+import { appendFileSync, mkdirSync, renameSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
@@ -50,6 +51,7 @@ const LOG_ENDPOINT = 'dsh-sidebar-tidy/log'
 const LOG_ROUTE = '/api/dsh-sidebar-tidy/log'
 const LEVELS = ['debug', 'info', 'warn', 'error']
 const LEVEL_RANK = { debug: 10, info: 20, warn: 30, error: 40 }
+const APP = 'dsh-sidebar-tidy'
 const DEFAULT_LOG_DIR = process.platform === 'win32'
   ? 'D:/DSH-plugins/log/dsh-sidebar-tidy'
   : join(homedir(), '.dsh-sidebar-tidy', 'log')
@@ -97,41 +99,13 @@ function oneLine(value, limit) {
   return collapsed.length > limit ? collapsed.slice(0, limit) + '…' : collapsed
 }
 
-/** JSON 化任意客户端数据：去循环引用、去函数、限长，绝不抛错。 */
-function jsonSafe(value, limit = 4000) {
-  const seen = new WeakSet()
-  let text
-  try {
-    text = JSON.stringify(value, (key, item) => {
-      if (typeof item === 'bigint') return item.toString()
-      if (typeof item === 'function' || typeof item === 'symbol') return undefined
-      if (typeof item === 'object' && item !== null) {
-        if (seen.has(item)) return '[circular]'
-        seen.add(item)
-      }
-      if (typeof item === 'string' && item.length > 500) return item.slice(0, 500) + '…'
-      return item
-    })
-  } catch {
-    text = undefined
-  }
-  if (typeof text !== 'string') {
-    try {
-      text = JSON.stringify(String(value))
-    } catch {
-      text = '"<unserializable>"'
-    }
-  }
-  return text.length > limit ? text.slice(0, limit) + '…' : text
-}
-
 function resolveConfig(raw) {
   const source = raw !== null && typeof raw === 'object' ? raw : {}
   return {
     logDir: typeof source.logDir === 'string' && source.logDir.trim() !== '' ? source.logDir.trim() : DEFAULT_LOG_DIR,
     enabled: source.enabled !== false,
     level: LEVELS.includes(source.level) ? source.level : 'debug',
-    maxFileBytes: clampInt(source.maxFileBytes, 256 * 1024, 128 * 1024 * 1024, 4 * 1024 * 1024),
+    maxFileBytes: clampInt(source.maxFileBytes, 256 * 1024, 128 * 1024 * 1024, 5 * 1024 * 1024),
     maxRecords: clampInt(source.maxRecords, 1, 500, 200),
   }
 }
@@ -174,12 +148,7 @@ function createFileLogger(ctx, settings) {
   const rotate = (file) => {
     try {
       if (statSync(file).size <= settings.maxFileBytes) return
-      const backup = `${file}.1`
-      try {
-        if (existsSync(backup)) unlinkSync(backup)
-      } catch {
-        // 备份删不掉就继续尝试改名；失败也只是文件偏大
-      }
+      const backup = file.replace(/\.jsonl$/u, `.${Date.now()}.jsonl`)
       renameSync(file, backup)
     } catch (error) {
       if (error?.code !== 'ENOENT') {
@@ -195,9 +164,9 @@ function createFileLogger(ctx, settings) {
     if (!ensureDirectory()) return false
     const now = new Date()
     try {
-      const file = join(dir, `dsh-sidebar-tidy-${dayKey(now)}.log`)
+      const file = join(dir, `host-${dayKey(now)}.jsonl`)
       rotate(file)
-      appendFileSync(file, formatLine(record, now) + '\n', 'utf8')
+      appendFileSync(file, serializeRecord(record, now) + '\n', 'utf8')
       return true
     } catch (error) {
       disabled = true
@@ -211,16 +180,45 @@ function createFileLogger(ctx, settings) {
   return { instanceId, dir, write, log, isEnabled: () => !disabled }
 }
 
-function formatLine(record, now) {
+/** 把一条记录序列化成单行 JSON；循环引用/函数/超长字段都不会抛错。 */
+function serializeRecord(record, now) {
   const time = record.time instanceof Date && !Number.isNaN(record.time.getTime()) ? record.time : now
-  const level = String(record.level ?? 'info').toUpperCase().padEnd(5)
-  const source = String(record.source ?? 'host').padEnd(6)
-  const event = String(record.event ?? 'event').padEnd(24)
-  const message = oneLine(record.message ?? '', 2000)
-  const data = record.data === undefined ? '' : ` ${jsonSafe(record.data)}`
-  const page = record.page === undefined ? '' : ` page=${jsonSafe(record.page, 800)}`
-  const clientTime = record.clientTime === undefined ? '' : ` at=${record.clientTime}`
-  return `${localTime(now)} | ${level} | ${source} | ${event} | ${message}${data}${page}${clientTime}`
+  const output = {
+    ts: time.toISOString(),
+    app: APP,
+    level: String(record.level ?? 'info').toLowerCase(),
+    source: String(record.source ?? 'host'),
+    event: String(record.event ?? 'event'),
+    msg: oneLine(record.message ?? '', 2000),
+  }
+  if (record.data !== undefined) output.data = record.data
+  if (record.page !== undefined) output.page = record.page
+  if (record.clientTime !== undefined) output.clientTime = record.clientTime
+  try {
+    const seen = new WeakSet()
+    const text = JSON.stringify(output, (key, item) => {
+      if (typeof item === 'bigint') return item.toString()
+      if (typeof item === 'function' || typeof item === 'symbol') return undefined
+      if (typeof item === 'object' && item !== null) {
+        if (seen.has(item)) return '[circular]'
+        seen.add(item)
+      }
+      if (typeof item === 'string' && item.length > 2000) return item.slice(0, 2000) + '…'
+      return item
+    })
+    if (typeof text === 'string' && text.length <= 64 * 1024) return text
+  } catch {
+    // 序列化失败时退回最小字段，保证仍是一行合法 JSON
+  }
+  return JSON.stringify({
+    ts: time.toISOString(),
+    app: APP,
+    level: String(record.level ?? 'info').toLowerCase(),
+    source: String(record.source ?? 'host'),
+    event: String(record.event ?? 'event'),
+    msg: oneLine(record.message ?? '', 500),
+    truncated: true,
+  })
 }
 
 /* ── 客户端日志接收 ─────────────────────────────────────────────────────── */

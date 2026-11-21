@@ -23,7 +23,8 @@
     "icon.svg",
     "README.md",
     "LICENSE",
-    "docs"
+    "docs",
+    "assets"
   ],
   "dependencies": {
     "dsh-better-sidebar": "0.32.1"

@@ -1,6 +1,5 @@
 // dsh-sidebar-tidy 自测：纯逻辑 + 模块形状。 node selftest.mjs
-import { readFileSync } from 'node:fs'
-
+import { readFileSync, statSync } from 'node:fs'
 const loaded = []
 globalThis.window = { __ModuleLoader__: { load: (definition) => loaded.push(definition) }, localStorage: undefined }
 new Function('window', readFileSync(new URL('./client.js', import.meta.url), 'utf8'))(globalThis.window)
@@ -34,6 +33,22 @@ check('依赖 dsh-better-sidebar@0.32.1', pkg.dependencies?.['dsh-better-sidebar
   pkg.dependencies?.['dsh-better-sidebar'])
 check('patch 同时挂载 better-sidebar', /- id:\s*better-sidebar[\s\S]*?name:\s*['"]?dsh-better-sidebar/.test(patch)
   && /disabled:\s*!!js/.test(patch))
+
+// —— 插件六件套：中文名/简介/detail/图标/资源/日志配置 ——
+const zh = JSON.parse(readFileSync(new URL('./locale/zh.json', import.meta.url), 'utf8'))
+const en = JSON.parse(readFileSync(new URL('./locale/en.json', import.meta.url), 'utf8'))
+const zhDetail = readFileSync(new URL('./docs/zh.md', import.meta.url), 'utf8')
+const enDetail = readFileSync(new URL('./docs/en.md', import.meta.url), 'utf8')
+check('locale 中文名/简介/detail', typeof zh.meta?.title === 'string' && zh.meta.title !== ''
+  && typeof zh.meta.description === 'string' && zh.meta.description !== ''
+  && zh.meta.detail === 'docs/zh.md' && en.meta?.detail === 'docs/en.md', { zh: zh.meta, en: en.meta })
+check('detail 首行 900×400 预览图', /^!\[[^\]]*\]\(\/assets\/preview\.svg\)/u.test(zhDetail)
+  && /^!\[[^\]]*\]\(\/assets\/preview\.svg\)/u.test(enDetail))
+check('icon 与 exports 齐全', pkg.icon === './icon.svg' && statSync(new URL('./icon.svg', import.meta.url)).size <= 256 * 1024
+  && pkg.exports?.['./package.json'] === './package.json'
+  && pkg.exports?.['./locale/zh.json'] === './locale/zh.json'
+  && pkg.exports?.['./locale/en.json'] === './locale/en.json')
+check('patch 带 logDir 配置', /config:\s*[\r\n]+\s*logDir:\s*['"]?D:\/DSH-plugins\/log\/dsh-sidebar-tidy/.test(patch))
 
 // —— 金丝雀六条行为（常量 / 健康 / 冷启动 / 漂移 / 幂等 / 抖动）——
 const source = readFileSync(new URL('./client.js', import.meta.url), 'utf8')
