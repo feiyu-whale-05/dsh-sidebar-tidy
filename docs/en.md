@@ -8,6 +8,6 @@
 - **Mobile drawer**: on narrow screens the sidebar becomes a left drawer with FAB, scrim and slide animation; switch `Always / Narrow only / Off` under **Settings → General → Mobile layout**.
 - **Canary fail-safe**: after being armed by a healthy three-column layout, 40 consecutive missing-anchor ticks (250ms) remove the mobile CSS, FAB, scrim and column marks, restoring the stock layout with one warning.
 - **Bundled DSH-better-sidebar**: the right-hand file tree, editor, Git, tasks, side chat and bottom terminal workbench are installed together and keep upgrading independently.
-- **Theme and logs**: follows DSH theme tokens; host logs are daily `host-YYYY-MM-DD.jsonl` files, one JSON per line, rotating above 5 MiB.
+- **Theme and logs**: follows DSH theme tokens; host logs are daily `host-YYYY-MM-DD.jsonl` files, one JSON per line, rotating above 2 MiB with five backups.
 
 > For users who want a quieter left sidebar without giving up the right-hand workbench.

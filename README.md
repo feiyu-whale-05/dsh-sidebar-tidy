@@ -18,11 +18,13 @@ DSH Web 左侧栏精简 + 移动抽屉布局插件，并**打包融合 [DSH-bett
 ## 打包融合 DSH-better-sidebar
 
 - 本插件 `package.json` 依赖 `dsh-better-sidebar@0.32.1`；`cordis.patch.yml` 在挂载 `sidebar-tidy` 的同一次 insert 中挂载 `better-sidebar`
-- 安装本插件时请使用 **`file:`**（或发布后的 npm 包）安装方式，pnpm 才会把它的 dependency 一并装进 profile：
-  ```sh
-  dsh plugin --profile desktop add file:D:/DSH-plugins/dsh-sidebar-tidy
+- 本插件按本机约定使用 **link + junction** 开发挂载（不要用 `file:` 复制，否则改 `client.js` / `locale` 不会刷新）：
+  ```jsonc
+  // ~/.dsh/profiles/desktop/package.json
+  "dsh-sidebar-tidy": "link:D:/DSH-plugins/dsh-sidebar-tidy"
   ```
-  如果 profile 里用的是 `link:D:/...` 开发挂载，pnpm 不会自动安装 link 包的依赖，需要一次性补装：
+  用 `dsh plugin --profile desktop add link:D:/DSH-plugins/dsh-sidebar-tidy` 或手工写 link 后，`node_modules/dsh-sidebar-tidy` 必须是指向源码目录的 junction。
+- pnpm 的 `link:` 不会自动安装 link 包的 dependency，因此还需要在 profile 里补装一次 better-sidebar：
   ```sh
   cd ~/.dsh/profiles/desktop && pnpm add dsh-better-sidebar@0.32.1 --save-exact
   ```
@@ -76,7 +78,7 @@ DSH Web 左侧栏精简 + 移动抽屉布局插件，并**打包融合 [DSH-bett
 D:\DSH-plugins\log\dsh-sidebar-tidy\host-YYYY-MM-DD.jsonl
 ```
 
-每行一个 JSON；单文件超过 5 MiB 时改名为 `host-YYYY-MM-DD.<timestamp>.jsonl`：
+每行一个 JSON；单文件超过 2 MiB 时改名为 `host-YYYY-MM-DD.<timestamp>.jsonl`，最多保留 5 份：
 
 ```json
 {"ts":"2026-11-14T06:40:00.123Z","app":"dsh-sidebar-tidy","level":"info","source":"host","event":"plugin.apply","msg":"dsh-sidebar-tidy host half activated","data":{"version":"0.2.2-rc.3"}}
@@ -104,7 +106,7 @@ D:\DSH-plugins\log\dsh-sidebar-tidy\host-YYYY-MM-DD.jsonl
         logDir: 'D:/DSH-plugins/log/dsh-sidebar-tidy'
         enabled: true
         level: debug          # debug | info | warn | error
-        maxFileBytes: 5242880 # 5 MiB
+        maxFileBytes: 2097152 # 2 MiB，轮转保留 5 份
         maxRecords: 200       # 单次 RPC 最多接收条数
 ```
 

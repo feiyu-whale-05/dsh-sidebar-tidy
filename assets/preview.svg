@@ -1,107 +1,44 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="900" height="400" viewBox="0 0 900 400" role="img" aria-label="dsh-sidebar-tidy：左侧栏精简 + 右侧工作台">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#0d1017"/>
-      <stop offset="1" stop-color="#151a24"/>
-    </linearGradient>
-    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#4d6bfe"/>
-      <stop offset="1" stop-color="#7c9cff"/>
-    </linearGradient>
-    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#000" flood-opacity="0.36"/>
-    </filter>
-  </defs>
-  <rect width="900" height="400" rx="18" fill="url(#bg)"/>
-  <rect x="0.5" y="0.5" width="899" height="399" rx="17.5" fill="none" stroke="#2a3140"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="400" viewBox="0 0 900 400" role="img" aria-label="侧栏精简 + 工作台：从输入状态到输出结果的流程图">
+  <rect width="900" height="400" rx="22" fill="#f6f8fc"/>
+  <rect x="1" y="1" width="898" height="398" rx="21" fill="none" stroke="#dce3f0" stroke-width="2"/>
 
-  <!-- header -->
-  <g transform="translate(32 28)">
-    <rect width="34" height="34" rx="10" fill="#4d6bfe"/>
-    <path d="M10 9h14M10 17h14M10 25h14" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
-    <text x="48" y="15" fill="#f5f7ff" font-family="'Microsoft YaHei','PingFang SC',sans-serif" font-size="15" font-weight="700">dsh-sidebar-tidy</text>
-    <text x="48" y="30" fill="#8e98aa" font-family="'Microsoft YaHei','PingFang SC',sans-serif" font-size="9.5" letter-spacing="0.6">左侧栏精简 × 右侧工作台</text>
-    <g transform="translate(620 4)">
-      <rect width="92" height="26" rx="13" fill="#1c2230" stroke="#2c3546"/>
-      <text x="46" y="17" text-anchor="middle" fill="#aeb8ca" font-family="'Microsoft YaHei','PingFang SC',sans-serif" font-size="10">DSH 0.2.2+</text>
-      <rect x="102" width="100" height="26" rx="13" fill="#1c2230" stroke="#2c3546"/>
-      <text x="152" y="17" text-anchor="middle" fill="#aeb8ca" font-family="'Microsoft YaHei','PingFang SC',sans-serif" font-size="10">0.2.2-rc.3</text>
-    </g>
+  <text x="50" y="66" fill="#172033" font-family="'Microsoft YaHei','PingFang SC',sans-serif" font-size="32" font-weight="700">侧栏精简 + 工作台</text>
+  <text x="50" y="96" fill="#7b879c" font-family="'Microsoft YaHei','PingFang SC',sans-serif" font-size="14">左侧栏整理、移动抽屉与右侧工作台，一次装好</text>
+
+  <!-- left input panel -->
+  <rect x="50" y="132" width="330" height="196" rx="18" fill="#ffffff" stroke="#5b7cfa" stroke-width="3"/>
+  <text x="76" y="170" fill="#5b7cfa" font-family="'Microsoft YaHei','PingFang SC',sans-serif" font-size="17" font-weight="700">输入 / 状态</text>
+
+  <g font-family="'Microsoft YaHei','PingFang SC',sans-serif" font-size="14" fill="#39465c">
+    <line x1="78" y1="202" x2="100" y2="202" stroke="#5b7cfa" stroke-width="4" stroke-linecap="round"/>
+    <text x="112" y="207">左侧栏面板</text>
+
+    <line x1="78" y1="238" x2="100" y2="238" stroke="#7a5cff" stroke-width="4" stroke-linecap="round"/>
+    <text x="112" y="243">移动布局</text>
+
+    <line x1="78" y1="274" x2="100" y2="274" stroke="#9a5b1e" stroke-width="4" stroke-linecap="round"/>
+    <text x="112" y="279">三列锚点</text>
   </g>
 
-  <!-- left sidebar -->
-  <g transform="translate(32 84)">
-    <rect width="222" height="284" rx="12" fill="#11161f" stroke="#242c3a"/>
-    <rect x="12" y="12" width="198" height="32" rx="8" fill="#1e2533"/>
-    <text x="111" y="32" text-anchor="middle" fill="#e7ebf5" font-family="'Microsoft YaHei','PingFang SC',sans-serif" font-size="11">＋ 新会话</text>
-    <g fill="#aab4c6" font-family="'Microsoft YaHei','PingFang SC',sans-serif" font-size="10.5">
-      <circle cx="22" cy="68" r="4" fill="#4d6bfe"/><text x="34" y="72">插件</text>
-      <circle cx="22" cy="92" r="4" fill="#6d7a8f"/><text x="34" y="96">自动化任务</text>
-      <circle cx="22" cy="116" r="4" fill="#6d7a8f"/><text x="34" y="120">安全审计</text>
-      <circle cx="22" cy="140" r="4" fill="#6d7a8f"/><text x="34" y="144">密钥管理</text>
-      <circle cx="22" cy="164" r="4" fill="#6d7a8f"/><text x="34" y="168">代码审查</text>
-    </g>
-    <rect x="12" y="180" width="198" height="1" fill="#232b39"/>
-    <text x="14" y="202" fill="#69758a" font-family="'Microsoft YaHei','PingFang SC',sans-serif" font-size="9" letter-spacing="1">工作区</text>
-    <g fill="#8f9bad" font-family="'Microsoft YaHei','PingFang SC',sans-serif" font-size="9.5">
-      <text x="14" y="224">▱ 默认工作区</text>
-      <text x="14" y="244">▱ 代码审查</text>
-      <text x="14" y="264">▱ 自动任务</text>
-    </g>
+  <!-- arrow -->
+  <line x1="394" y1="230" x2="502" y2="230" stroke="#5b7cfa" stroke-width="4" stroke-linecap="round"/>
+  <path d="M500 220 L514 230 L500 240" fill="none" stroke="#5b7cfa" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="424" y="214" fill="#8b97aa" font-family="'Microsoft YaHei','PingFang SC',sans-serif" font-size="12">reconcile</text>
+
+  <!-- right output panel -->
+  <rect x="520" y="132" width="330" height="196" rx="18" fill="#ffffff" stroke="#2f7d4f" stroke-width="3"/>
+  <text x="546" y="170" fill="#2f7d4f" font-family="'Microsoft YaHei','PingFang SC',sans-serif" font-size="17" font-weight="700">输出 / 结果</text>
+
+  <g font-family="'Microsoft YaHei','PingFang SC',sans-serif" font-size="14" fill="#39465c">
+    <line x1="548" y1="202" x2="570" y2="202" stroke="#2f7d4f" stroke-width="4" stroke-linecap="round"/>
+    <text x="582" y="207">官方原生布局</text>
+
+    <line x1="548" y1="238" x2="570" y2="238" stroke="#7a5cff" stroke-width="4" stroke-linecap="round"/>
+    <text x="582" y="243">右侧工作台</text>
+
+    <line x1="548" y1="274" x2="570" y2="274" stroke="#9a5b1e" stroke-width="4" stroke-linecap="round"/>
+    <text x="582" y="279">JSONL 日志</text>
   </g>
 
-  <!-- right workbench -->
-  <g transform="translate(274 84)" filter="url(#shadow)">
-    <rect width="594" height="284" rx="12" fill="#0e131c" stroke="#263143"/>
-    <rect width="594" height="38" rx="12" fill="#151c28"/>
-    <rect y="26" width="594" height="12" fill="#151c28"/>
-    <g font-family="'Microsoft YaHei','PingFang SC',sans-serif" font-size="10">
-      <text x="16" y="23" fill="#e7ebf5">文件</text>
-      <text x="72" y="23" fill="#77849a">更改</text>
-      <text x="126" y="23" fill="#77849a">Git</text>
-      <text x="176" y="23" fill="#77849a">任务</text>
-      <text x="230" y="23" fill="#77849a">终端</text>
-      <rect x="526" y="9" width="52" height="19" rx="9.5" fill="#22345f"/>
-      <text x="552" y="22" text-anchor="middle" fill="#9fb6ff">MCP</text>
-    </g>
-    <g transform="translate(16 56)">
-      <rect width="188" height="212" rx="8" fill="#111823" stroke="#222c3b"/>
-      <text x="12" y="22" fill="#8d9bb0" font-family="'Microsoft YaHei','PingFang SC',sans-serif" font-size="9.5">资源管理器</text>
-      <g fill="#a7b3c7" font-family="'Microsoft YaHei','PingFang SC',sans-serif" font-size="9">
-        <text x="12" y="48">▾ src</text>
-        <text x="26" y="68">client.js</text>
-        <text x="26" y="88">index.js</text>
-        <text x="12" y="108">▸ docs</text>
-        <text x="12" y="128">▸ locale</text>
-        <text x="12" y="148">package.json</text>
-        <text x="12" y="168">README.md</text>
-      </g>
-    </g>
-    <g transform="translate(220 56)">
-      <rect width="358" height="212" rx="8" fill="#0b1018" stroke="#222c3b"/>
-      <text x="14" y="22" fill="#9aa7bc" font-family="'Consolas',monospace" font-size="9">client.js</text>
-      <g font-family="'Consolas',monospace" font-size="8.5">
-        <text x="14" y="46" fill="#7d8aa0">01</text><text x="38" y="46" fill="#7fd6a4">const</text><text x="76" y="46" fill="#c9d4e5">MOBILE_MODE_KEY =</text>
-        <text x="14" y="64" fill="#7d8aa0">02</text><text x="38" y="64" fill="#e7c07a">'dsh-sidebar-tidy:mobile-layout'</text>
-        <text x="14" y="82" fill="#7d8aa0">03</text>
-        <text x="14" y="100" fill="#7d8aa0">04</text><text x="38" y="100" fill="#7fd6a4">function</text><text x="92" y="100" fill="#9bb8ff">tripCanary</text><text x="150" y="100" fill="#c9d4e5">(reason) {</text>
-        <text x="14" y="118" fill="#7d8aa0">05</text><text x="48" y="118" fill="#7fd6a4">clearInterval</text><text x="126" y="118" fill="#c9d4e5">(backstopTimer)</text>
-        <text x="14" y="136" fill="#7d8aa0">06</text><text x="48" y="136" fill="#c9d4e5">styleTag.remove()</text>
-        <text x="14" y="154" fill="#7d8aa0">07</text><text x="48" y="154" fill="#c9d4e5">removeChrome()</text>
-        <text x="14" y="172" fill="#7d8aa0">08</text><text x="48" y="172" fill="#c9d4e5">clearAllMarks()</text>
-        <text x="14" y="190" fill="#7d8aa0">09</text><text x="38" y="190" fill="#c9d4e5">}</text>
-      </g>
-      <rect x="238" y="170" width="104" height="26" rx="7" fill="#1a2a4f" stroke="#2c4375"/>
-      <text x="290" y="187" text-anchor="middle" fill="#a9c0ff" font-family="'Microsoft YaHei','PingFang SC',sans-serif" font-size="9">canary armed</text>
-    </g>
-  </g>
-
-  <!-- footer bullets -->
-  <g transform="translate(40 382)" font-family="'Microsoft YaHei','PingFang SC',sans-serif" font-size="9.5" fill="#7e8ba0">
-    <text>拖拽排序 / 收进更多</text>
-    <text x="190">移动抽屉 · FAB</text>
-    <text x="340">设置 → 移动布局</text>
-    <text x="500">金丝雀 fail-safe</text>
-    <text x="650">打包融合 better-sidebar</text>
-  </g>
+  <text x="50" y="370" fill="#9aa6b8" font-family="'Microsoft YaHei','PingFang SC',sans-serif" font-size="11">DSH 0.2.2+ · 打包融合 DSH-better-sidebar · 金丝雀 fail-safe</text>
 </svg>

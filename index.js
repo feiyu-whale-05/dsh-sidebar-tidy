@@ -18,7 +18,7 @@
  *
  * 日志设计（本机插件约定）：
  *   - 每行一个 JSON；每天一个文件 host-YYYY-MM-DD.jsonl。
- *   - 单文件超过 5 MiB 自动改名为 host-YYYY-MM-DD.<timestamp>.jsonl。
+ *   - 单文件超过 2 MiB 自动改名为 host-YYYY-MM-DD.<timestamp>.jsonl，最多保留 5 份。 
  *   - 字段：ts / app / level / source / event / msg / data / page / clientTime。
  *   - 客户端消息中的换行会被压平，避免伪造多行；字段长度有上限。
  *   - 目录/写入不可用时自动降级为 ctx.logger 控制台日志，不影响插件本身。
@@ -27,11 +27,11 @@
  *   logDir        日志目录；默认 D:/DSH-plugins/log/dsh-sidebar-tidy
  *   enabled       false 关闭文件日志
  *   level         debug | info | warn | error，默认 debug
- *   maxFileBytes  单文件上限，默认 5 MiB（256 KiB – 128 MiB）
+ *   maxFileBytes  单文件上限，默认 2 MiB（256 KiB – 128 MiB），超过后轮转并保留 5 份
  *   maxRecords    单次 RPC 最多接收多少条，默认 200（1 – 500）
  */
 
-import { appendFileSync, mkdirSync, renameSync, statSync } from 'node:fs'
+import { appendFileSync, mkdirSync, readdirSync, renameSync, statSync, unlinkSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
@@ -52,6 +52,7 @@ const LOG_ROUTE = '/api/dsh-sidebar-tidy/log'
 const LEVELS = ['debug', 'info', 'warn', 'error']
 const LEVEL_RANK = { debug: 10, info: 20, warn: 30, error: 40 }
 const APP = 'dsh-sidebar-tidy'
+const MAX_BACKUPS = 5
 const DEFAULT_LOG_DIR = process.platform === 'win32'
   ? 'D:/DSH-plugins/log/dsh-sidebar-tidy'
   : join(homedir(), '.dsh-sidebar-tidy', 'log')
@@ -105,7 +106,7 @@ function resolveConfig(raw) {
     logDir: typeof source.logDir === 'string' && source.logDir.trim() !== '' ? source.logDir.trim() : DEFAULT_LOG_DIR,
     enabled: source.enabled !== false,
     level: LEVELS.includes(source.level) ? source.level : 'debug',
-    maxFileBytes: clampInt(source.maxFileBytes, 256 * 1024, 128 * 1024 * 1024, 5 * 1024 * 1024),
+    maxFileBytes: clampInt(source.maxFileBytes, 256 * 1024, 128 * 1024 * 1024, 2 * 1024 * 1024),
     maxRecords: clampInt(source.maxRecords, 1, 500, 200),
   }
 }
@@ -145,11 +146,30 @@ function createFileLogger(ctx, settings) {
     }
   }
 
+  const pruneBackups = () => {
+    try {
+      const backups = readdirSync(dir)
+        .filter((name) => /^host-\d{4}-\d{2}-\d{2}\.\d+\.jsonl$/u.test(name))
+        .sort()
+      while (backups.length > MAX_BACKUPS) {
+        const oldest = backups.shift()
+        try {
+          unlinkSync(join(dir, oldest))
+        } catch {
+          // 删不掉旧备份不阻塞写入；下一轮还会再试
+        }
+      }
+    } catch {
+      // 读目录失败不阻塞写入
+    }
+  }
+
   const rotate = (file) => {
     try {
       if (statSync(file).size <= settings.maxFileBytes) return
       const backup = file.replace(/\.jsonl$/u, `.${Date.now()}.jsonl`)
       renameSync(file, backup)
+      pruneBackups()
     } catch (error) {
       if (error?.code !== 'ENOENT') {
         // 轮转失败不应丢日志，继续追加
@@ -248,7 +268,7 @@ function normalizeClientRecord(raw, page) {
   return record
 }
 
-function acceptClientLogs(payload, logger, settings) {
+function acceptClientLogs(payload, logger, settings, durationMs) {
   const records = Array.isArray(payload?.records) ? payload.records.slice(0, settings.maxRecords) : []
   const page = normalizePage(payload?.page)
   let accepted = 0
@@ -259,6 +279,7 @@ function acceptClientLogs(payload, logger, settings) {
   logger.log('debug', 'host', 'client.batch', 'received client log batch', {
     received: records.length,
     accepted,
+    durationMs,
     pid: process.pid,
     instanceId: logger.instanceId,
   })
@@ -277,6 +298,7 @@ function rpcResponse(rpcId, result) {
 }
 
 async function handleLogFetch(request, logger, settings) {
+  const startedAt = Date.now()
   if (String(request.method).toUpperCase() !== 'POST') {
     return new Response('method not allowed', { status: 405, headers: { allow: 'POST' } })
   }
@@ -298,9 +320,12 @@ async function handleLogFetch(request, logger, settings) {
     })
   }
   try {
-    return rpcResponse(rpcId, { ok: true, value: acceptClientLogs(envelope.payload, logger, settings) })
+    return rpcResponse(rpcId, { ok: true, value: acceptClientLogs(envelope.payload, logger, settings, Date.now() - startedAt) })
   } catch (error) {
-    logger.log('error', 'host', 'client.batch.failed', 'cannot accept client log batch', { error: messageOf(error) })
+    logger.log('error', 'host', 'client.batch.failed', 'cannot accept client log batch', {
+      error: messageOf(error),
+      durationMs: Date.now() - startedAt,
+    })
     return rpcResponse(rpcId, { ok: false, error: { code: 'log/rejected', message: messageOf(error), details: {} } })
   }
 }

@@ -4,7 +4,7 @@
 #     logDir: 'D:/DSH-plugins/log/dsh-sidebar-tidy'
 #     enabled: true
 #     level: debug
-#     maxFileBytes: 5242880
+#     maxFileBytes: 2097152
 #     maxRecords: 200
 - insert:
     - id: sidebar-tidy
@@ -13,6 +13,7 @@
         logDir: 'D:/DSH-plugins/log/dsh-sidebar-tidy'
         enabled: true
         level: debug
+        maxFileBytes: 2097152
     # 打包融合：同一份 patch 同时挂载 dsh-better-sidebar（右侧工作台）。
     # 它作为本插件的 dependency 安装；上游自带 bundle patch，避免 profile
     # 再单独把它列进 bundles，否则会重复挂载 /sidebar/api 导致启动失败。

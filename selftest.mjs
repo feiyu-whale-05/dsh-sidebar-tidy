@@ -49,6 +49,8 @@ check('icon 与 exports 齐全', pkg.icon === './icon.svg' && statSync(new URL('
   && pkg.exports?.['./locale/zh.json'] === './locale/zh.json'
   && pkg.exports?.['./locale/en.json'] === './locale/en.json')
 check('patch 带 logDir 配置', /config:\s*[\r\n]+\s*logDir:\s*['"]?D:\/DSH-plugins\/log\/dsh-sidebar-tidy/.test(patch))
+check('日志 2 MiB 轮转且保留 5 份', /maxFileBytes:\s*2097152/.test(patch)
+  && /const MAX_BACKUPS = 5/u.test(readFileSync(new URL('./index.js', import.meta.url), 'utf8')))
 
 // —— 金丝雀六条行为（常量 / 健康 / 冷启动 / 漂移 / 幂等 / 抖动）——
 const source = readFileSync(new URL('./client.js', import.meta.url), 'utf8')
