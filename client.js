@@ -500,54 +500,25 @@ window.__ModuleLoader__.load({
       .st-flyout{padding:4px;background:var(--dsw-alias-bg-layer-2,#2c2c2e);
         border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.25));border-radius:12px;
         box-shadow:0 12px 32px rgba(0,0,0,.28)}
-      /* 把「插件 / Superagent / … / 更多」这一段钉在侧栏顶部：
-         工作区/会话列表在下面滚动，品牌行和新会话本来就在滚动区外面。
-         sticky 只在滚动容器里让出空间；背景必须实心，避免会话行透出来。 */
+      /* 把「插件 / Superagent / … / 更多」这一段钉在侧栏顶部，但不再用
+         半透明/实心底板去盖住滚动文字。外层 scrollport 禁止滚动，工作区
+         的 listArea 自己滚动，列表元素只在列表区可见，永远不会进入按钮区。 */
       nav.st-pinned,
       [data-sidebar-scrollport] > nav,
       [data-sidebar-scrollport] nav:has(button[aria-haspopup="menu"]) {
         position: sticky;
-        /* 滚动区顶部本来有 8px 的空隙（scrollArea 的第一行）；贴到 0 会在开始
-           滚动时把面板区整体向上顶 8px，看起来就是「抖一下」。保持 8px 并
-           用伪元素盖住上下空隙，滚动前后面板行的位置完全不变。 */
         top: 8px;
         z-index: 4;
-        /* 面板透明时（Aether 等主题会把 sidebar-fill / bg-base 都设成 rgba），
-           直接叠半透明颜色仍会让下面滚上来的会话文字透出。
-           用 CSS 相对颜色把 sidebar-fill 的 RGB 取出来、alpha 固定为 1：
-           保住主题色相的同时得到真正不透明的底色。 */
-        --st-panel-fill: var(--dsw-alias-bg-base, #fff);
-        --st-panel-fill: rgb(from var(--aether-chrome-fill, var(--dsw-specific-sidebar-fill, var(--dsw-alias-bg-base, #fff))) r g b / 1);
-        background-color: var(--st-panel-fill);
-        background-image: none;
-        box-shadow: 0 1px 0 var(--dsw-alias-border-l1, rgba(0, 0, 0, .06));
       }
-      nav.st-pinned::before,
-      [data-sidebar-scrollport] > nav::before,
-      [data-sidebar-scrollport] nav:has(button[aria-haspopup="menu"])::before,
-      nav.st-pinned::after,
-      [data-sidebar-scrollport] > nav::after,
-      [data-sidebar-scrollport] nav:has(button[aria-haspopup="menu"])::after {
-        content: '';
-        position: absolute;
-        left: 0;
-        right: 0;
-        z-index: -1;
-        pointer-events: none;
-        background-color: var(--st-panel-fill, var(--dsw-alias-bg-base, #fff));
-        background-image: none;
+      [data-sidebar-scrollport] {
+        overflow-y: hidden !important;
       }
-      nav.st-pinned::before,
-      [data-sidebar-scrollport] > nav::before,
-      [data-sidebar-scrollport] nav:has(button[aria-haspopup="menu"])::before {
-        top: -8px;
-        height: 8px;
+      [data-sidebar-scrollport] [class*="regionArea"] {
+        min-height: 0;
+        overflow: hidden !important;
       }
-      nav.st-pinned::after,
-      [data-sidebar-scrollport] > nav::after,
-      [data-sidebar-scrollport] nav:has(button[aria-haspopup="menu"])::after {
-        bottom: -9px;
-        height: 9px;
+      [data-sidebar-scrollport] [class*="listArea"] {
+        overflow-y: auto !important;
       }
       /* 「更多」右侧的小箭头：收起时朝下，展开时朝上（2026-10-25） */
       nav button[aria-haspopup="menu"]{position:relative;padding-right:24px!important}
