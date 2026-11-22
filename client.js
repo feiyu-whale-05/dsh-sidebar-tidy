@@ -509,14 +509,47 @@ window.__ModuleLoader__.load({
         position: sticky;
         /* 滚动区顶部本来有 8px 的空隙（scrollArea 的第一行）；贴到 0 会在开始
            滚动时把面板区整体向上顶 8px，看起来就是「抖一下」。保持 8px 并
-           用负向阴影盖住这 8px，滚动前后面板行的位置完全不变。 */
+           用伪元素盖住上下空隙，滚动前后面板行的位置完全不变。 */
         top: 8px;
         z-index: 4;
-        background: var(--dsw-specific-sidebar-fill, var(--dsw-alias-bg-base, #fff));
-        box-shadow:
-          0 -8px 0 var(--dsw-specific-sidebar-fill, var(--dsw-alias-bg-base, #fff)),
-          0 1px 0 var(--dsw-alias-border-l1, rgba(0, 0, 0, .06)),
-          0 9px 0 var(--dsw-specific-sidebar-fill, var(--dsw-alias-bg-base, #fff));
+        /* 不直接用半透明 sidebar-fill：面板透明时下面滚上来的会话文字会透出。
+           先铺一层不透明 bg-base，再叠 sidebar-fill 保持原有色调。 */
+        background-color: var(--dsw-alias-bg-base, #fff);
+        background-image: linear-gradient(
+          var(--dsw-specific-sidebar-fill, var(--dsw-alias-bg-base, #fff)),
+          var(--dsw-specific-sidebar-fill, var(--dsw-alias-bg-base, #fff))
+        );
+        box-shadow: 0 1px 0 var(--dsw-alias-border-l1, rgba(0, 0, 0, .06));
+      }
+      nav.st-pinned::before,
+      [data-sidebar-scrollport] > nav::before,
+      [data-sidebar-scrollport] nav:has(button[aria-haspopup="menu"])::before,
+      nav.st-pinned::after,
+      [data-sidebar-scrollport] > nav::after,
+      [data-sidebar-scrollport] nav:has(button[aria-haspopup="menu"])::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        z-index: -1;
+        pointer-events: none;
+        background-color: var(--dsw-alias-bg-base, #fff);
+        background-image: linear-gradient(
+          var(--dsw-specific-sidebar-fill, var(--dsw-alias-bg-base, #fff)),
+          var(--dsw-specific-sidebar-fill, var(--dsw-alias-bg-base, #fff))
+        );
+      }
+      nav.st-pinned::before,
+      [data-sidebar-scrollport] > nav::before,
+      [data-sidebar-scrollport] nav:has(button[aria-haspopup="menu"])::before {
+        top: -8px;
+        height: 8px;
+      }
+      nav.st-pinned::after,
+      [data-sidebar-scrollport] > nav::after,
+      [data-sidebar-scrollport] nav:has(button[aria-haspopup="menu"])::after {
+        bottom: -9px;
+        height: 9px;
       }
       /* 「更多」右侧的小箭头：收起时朝下，展开时朝上（2026-10-25） */
       nav button[aria-haspopup="menu"]{position:relative;padding-right:24px!important}
@@ -2146,6 +2179,10 @@ window.__ModuleLoader__.load({
         // A. 侧栏只留白名单
         let scheduled = false
         let lastTidyCalls = -2
+        // 启动竞态：本插件 apply 时 ui-sidebar 可能还没把 sidebar 槽位注册进来，
+        // 第一次 tidy() 会返回 -1。等 3s 再看一眼，仍没有才告警（否则每次启动
+        // 都刷一条假警告，实测紧接着的两次调度就成功了）。
+        let missingWarnTimer = null
         const schedule = () => {
           if (scheduled) return
           scheduled = true
@@ -2153,11 +2190,21 @@ window.__ModuleLoader__.load({
             scheduled = false
             pinPanelNav()
             const calls = tidy(ctx)
-            if (calls >= 0 && calls !== lastTidyCalls) {
-              lastTidyCalls = calls
-              log('info', 'sidebar.tidy', '同步侧栏面板 pin 状态', { calls, keep: [...KEEP] })
-            } else if (calls < 0) {
-              logOnce('warn', 'tidy:missing', 'sidebar.tidy.missing', '找不到侧栏 setPinned 接口，无法自动收起面板', {})
+            if (calls >= 0) {
+              if (missingWarnTimer !== null) {
+                clearTimeout(missingWarnTimer)
+                missingWarnTimer = null
+              }
+              if (calls !== lastTidyCalls) {
+                lastTidyCalls = calls
+                log('info', 'sidebar.tidy', '同步侧栏面板 pin 状态', { calls, keep: [...KEEP] })
+              }
+            } else if (missingWarnTimer === null) {
+              missingWarnTimer = setTimeout(() => {
+                missingWarnTimer = null
+                if (tidy(ctx) >= 0) return
+                logOnce('warn', 'tidy:missing', 'sidebar.tidy.missing', '找不到侧栏 setPinned 接口，无法自动收起面板', {})
+              }, 3000)
             }
           })
         }

@@ -24,11 +24,11 @@ DSH Web 左侧栏精简 + 移动抽屉布局插件，并**打包融合 [DSH-bett
   "dsh-sidebar-tidy": "link:D:/DSH-plugins/dsh-sidebar-tidy"
   ```
   用 `dsh plugin --profile desktop add link:D:/DSH-plugins/dsh-sidebar-tidy` 或手工写 link 后，`node_modules/dsh-sidebar-tidy` 必须是指向源码目录的 junction。
-- pnpm 的 `link:` 不会自动安装 link 包的 dependency，因此还需要在 profile 里补装一次 better-sidebar：
+- pnpm 的 `link:` 不会自动安装 link 包的 dependency，因此还需要在 profile 里补装一次 better-sidebar；用 **optionalDependencies** 安装，它就不会单独出现在插件列表里，只会作为组合包的一行展示：
   ```sh
-  cd ~/.dsh/profiles/desktop && pnpm add dsh-better-sidebar@0.32.1 --save-exact
+  cd ~/.dsh/profiles/desktop && pnpm add --save-optional dsh-better-sidebar@0.32.1
   ```
-- **不要**再把 `dsh-better-sidebar` 单独加入 profile 的 `dsh.profile.bundles`，否则会重复挂载 `/sidebar/api` 并导致启动失败；本插件的 patch 已带 aggregate 防重复 guard
+- **不要**再把 `dsh-better-sidebar` 单独加入 profile 的 `dsh.profile.bundles`，也不要把它的名字放进 package.json 的 `dependencies`（那样会在插件页多出一张独立卡片）；放在 `optionalDependencies` 里即可，组合包的 patch 会挂载它
 - 修改 `cordis.patch.yml` 或安装 dependency 后需要重启 DSH 才会加载新的 bundle 组成；客户端改动刷新页面即可
 - 上游为 MIT，仓库：https://github.com/omdsh-dev/DSH-better-sidebar
 
