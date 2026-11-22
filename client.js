@@ -2241,9 +2241,29 @@ window.__ModuleLoader__.load({
           }
         }, 'sidebar-tidy: pinned panel nav')
         schedule()
-        // DOM 可能晚于面板槽位就绪；listArea 出现后再锁一次。
-        setTimeout(() => { pinPanelNav(); lockSidebarList() }, 400)
-        setTimeout(() => { pinPanelNav(); lockSidebarList() }, 1500)
+        // DOM/侧栏槽位可能远晚于 apply（实测重启后 apply 时 panels=0、
+        // uiWorkspace=false）。用 MutationObserver 持续等到 workspace 的
+        // listArea 出现，再锁外层滚动；首秒内再补一次 interval。
+        ctx.effect(() => {
+          let scheduled = false
+          const ensure = () => {
+            if (scheduled) return
+            scheduled = true
+            setTimeout(() => {
+              scheduled = false
+              pinPanelNav()
+              lockSidebarList()
+            }, 80)
+          }
+          const observer = new MutationObserver(ensure)
+          observer.observe(document.body, { childList: true, subtree: true })
+          const timer = setInterval(ensure, 1000)
+          ensure()
+          return () => {
+            observer.disconnect()
+            clearInterval(timer)
+          }
+        }, 'sidebar-tidy: list lock')
 
         // 恢复持久化顺序与自定义白名单（重启/重载后不丢）；面板列表变化时若下拉开着就重绘
         const sync = () => {
