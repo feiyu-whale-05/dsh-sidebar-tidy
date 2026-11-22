@@ -2115,12 +2115,19 @@ window.__ModuleLoader__.load({
       const nav = document.querySelector('nav.st-pinned')
       const scrollport = nav?.parentElement
       if (scrollport === null || scrollport === undefined) return false
-      const list = scrollport.querySelector('[class*="listArea"]')
+      // 只认工作区 sectionHeader 下的 listArea；scrollport 里可能先命中
+      // 「更多」等其它带 listArea 的列表。
+      const header = scrollport.querySelector('[data-sidebar-workspace-header]')
+      const list = header?.parentElement?.querySelector('[class*="listArea"]')
+        ?? scrollport.querySelector('[class*="listArea"]')
       if (list === null) return false
       scrollport.classList.add('st-list-only')
       // 不只依赖样式表：直接给实际滚动节点上 inline !important，避免
       // 主题/缓存/旧样式表让 overflow 规则失效。
       scrollport.style.setProperty('overflow-y', 'hidden', 'important')
+      // 关键：overflow 改 hidden 不会把已有的 scrollTop 归零。用户已经
+      // 滚到按钮区时，列表会继续停在按钮下面；锁定时必须回到顶部。
+      if (scrollport.scrollTop !== 0) scrollport.scrollTop = 0
       const region = scrollport.querySelector('[class*="regionArea"]')
       if (region instanceof HTMLElement) region.style.setProperty('overflow', 'hidden', 'important')
       if (list instanceof HTMLElement) list.style.setProperty('overflow-y', 'auto', 'important')
@@ -2130,8 +2137,11 @@ window.__ModuleLoader__.load({
           hasAttr: scrollport.hasAttribute('data-sidebar-scrollport'),
           outerOverflow: getComputedStyle(scrollport).overflowY,
           listOverflow: getComputedStyle(list).overflowY,
+          scrollTop: scrollport.scrollTop,
           navTop: Math.round(nav.getBoundingClientRect().top),
+          navBottom: Math.round(nav.getBoundingClientRect().bottom),
           listTop: Math.round(list.getBoundingClientRect().top),
+          listClass: String(list.className).slice(0, 80),
         })
       }
       return true
