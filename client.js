@@ -520,6 +520,18 @@ window.__ModuleLoader__.load({
       [data-sidebar-scrollport] [class*="listArea"] {
         overflow-y: auto !important;
       }
+      /* 兼容没有 data-sidebar-scrollport 的宽度/抽屉分支：
+         JS 会在 nav 的直接父级（scrollArea）挂 .st-list-only。 */
+      .st-list-only {
+        overflow-y: hidden !important;
+      }
+      .st-list-only [class*="regionArea"] {
+        min-height: 0;
+        overflow: hidden !important;
+      }
+      .st-list-only [class*="listArea"] {
+        overflow-y: auto !important;
+      }
       /* 「更多」右侧的小箭头：收起时朝下，展开时朝上（2026-10-25） */
       nav button[aria-haspopup="menu"]{position:relative;padding-right:24px!important}
       nav button[aria-haspopup="menu"]::after{content:"";position:absolute;right:9px;top:50%;
@@ -2090,6 +2102,39 @@ window.__ModuleLoader__.load({
       for (const nav of document.querySelectorAll('nav')) {
         if (nav.querySelector('button[aria-haspopup="menu"]') !== null) nav.classList.add('st-pinned')
       }
+      lockSidebarList()
+    }
+
+    /**
+     * 把 nav 的直接父级（DSH 的 scrollArea）标记为 .st-list-only：
+     * 外层不再滚动，工作区 listArea 自己滚，列表元素不会进入按钮区。
+     * 不依赖 data-sidebar-scrollport —— 窄屏/抽屉分支没有该属性。
+     */
+    let listOnlyProbeLogged = false
+    function lockSidebarList() {
+      const nav = document.querySelector('nav.st-pinned')
+      const scrollport = nav?.parentElement
+      if (scrollport === null || scrollport === undefined) return false
+      const list = scrollport.querySelector('[class*="listArea"]')
+      if (list === null) return false
+      scrollport.classList.add('st-list-only')
+      // 不只依赖样式表：直接给实际滚动节点上 inline !important，避免
+      // 主题/缓存/旧样式表让 overflow 规则失效。
+      scrollport.style.setProperty('overflow-y', 'hidden', 'important')
+      const region = scrollport.querySelector('[class*="regionArea"]')
+      if (region instanceof HTMLElement) region.style.setProperty('overflow', 'hidden', 'important')
+      if (list instanceof HTMLElement) list.style.setProperty('overflow-y', 'auto', 'important')
+      if (!listOnlyProbeLogged) {
+        listOnlyProbeLogged = true
+        log('debug', 'dom.list-only', '侧栏列表锁定到 listArea', {
+          hasAttr: scrollport.hasAttribute('data-sidebar-scrollport'),
+          outerOverflow: getComputedStyle(scrollport).overflowY,
+          listOverflow: getComputedStyle(list).overflowY,
+          navTop: Math.round(nav.getBoundingClientRect().top),
+          listTop: Math.round(list.getBoundingClientRect().top),
+        })
+      }
+      return true
     }
 
     /** 判定一颗按钮是不是侧栏「更多」：带 aria-haspopup="menu"、在 nav 里，且该 nav 有面板行。 */
@@ -2186,6 +2231,9 @@ window.__ModuleLoader__.load({
           }
         }, 'sidebar-tidy: pinned panel nav')
         schedule()
+        // DOM 可能晚于面板槽位就绪；listArea 出现后再锁一次。
+        setTimeout(() => { pinPanelNav(); lockSidebarList() }, 400)
+        setTimeout(() => { pinPanelNav(); lockSidebarList() }, 1500)
 
         // 恢复持久化顺序与自定义白名单（重启/重载后不丢）；面板列表变化时若下拉开着就重绘
         const sync = () => {
