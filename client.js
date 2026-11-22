@@ -500,9 +500,9 @@ window.__ModuleLoader__.load({
       .st-flyout{padding:4px;background:var(--dsw-alias-bg-layer-2,#2c2c2e);
         border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.25));border-radius:12px;
         box-shadow:0 12px 32px rgba(0,0,0,.28)}
-      /* 把「插件 / Superagent / … / 更多」这一段钉在侧栏顶部，但不再用
-         半透明/实心底板去盖住滚动文字。外层 scrollport 禁止滚动，工作区
-         的 listArea 自己滚动，列表元素只在列表区可见，永远不会进入按钮区。 */
+      /* 面板区固定在顶部；会话列表照常滚动。滚到按钮区的会话条不显示：
+         JS 给 row 加 .st-row-hidden（visibility:hidden，保留布局所以不会
+         回弹/白滚），只隐藏，不卸载列表容器。 */
       nav.st-pinned,
       [data-sidebar-scrollport] > nav,
       [data-sidebar-scrollport] nav:has(button[aria-haspopup="menu"]) {
@@ -510,27 +510,9 @@ window.__ModuleLoader__.load({
         top: 8px;
         z-index: 4;
       }
-      [data-sidebar-scrollport] {
-        overflow-y: hidden !important;
-      }
-      [data-sidebar-scrollport] [class*="regionArea"] {
-        min-height: 0;
-        overflow: hidden !important;
-      }
-      [data-sidebar-scrollport] [class*="listArea"] {
-        overflow-y: auto !important;
-      }
-      /* 兼容没有 data-sidebar-scrollport 的宽度/抽屉分支：
-         JS 会在 nav 的直接父级（scrollArea）挂 .st-list-only。 */
-      .st-list-only {
-        overflow-y: hidden !important;
-      }
-      .st-list-only [class*="regionArea"] {
-        min-height: 0;
-        overflow: hidden !important;
-      }
-      .st-list-only [class*="listArea"] {
-        overflow-y: auto !important;
+      .st-row-hidden {
+        visibility: hidden !important;
+        pointer-events: none !important;
       }
       /* 「更多」右侧的小箭头：收起时朝下，展开时朝上（2026-10-25） */
       nav button[aria-haspopup="menu"]{position:relative;padding-right:24px!important}
@@ -2102,49 +2084,57 @@ window.__ModuleLoader__.load({
       for (const nav of document.querySelectorAll('nav')) {
         if (nav.querySelector('button[aria-haspopup="menu"]') !== null) nav.classList.add('st-pinned')
       }
-      lockSidebarList()
+      scheduleRowHide()
     }
 
     /**
-     * 把 nav 的直接父级（DSH 的 scrollArea）标记为 .st-list-only：
-     * 外层不再滚动，工作区 listArea 自己滚，列表元素不会进入按钮区。
-     * 不依赖 data-sidebar-scrollport —— 窄屏/抽屉分支没有该属性。
+     * 会话条滚进按钮区时不显示：只给 row 加 visibility:hidden，
+     * 保留行高，所以列表还能正常滚、下面的会话还能点；滚回来后恢复。
+     * 不锁 overflow、不改 scrollTop，避免「停下就回到原位」。
      */
-    let listOnlyProbeLogged = false
-    function lockSidebarList() {
+    let rowHideScheduled = false
+    let rowHideProbeLogged = false
+    function scheduleRowHide() {
+      if (rowHideScheduled) return
+      rowHideScheduled = true
+      requestAnimationFrame(() => {
+        rowHideScheduled = false
+        hideRowsUnderButtons()
+      })
+    }
+    function hideRowsUnderButtons() {
       const nav = document.querySelector('nav.st-pinned')
-      const scrollport = nav?.parentElement
-      if (scrollport === null || scrollport === undefined) return false
-      // 只认工作区 sectionHeader 下的 listArea；scrollport 里可能先命中
-      // 「更多」等其它带 listArea 的列表。
-      const header = scrollport.querySelector('[data-sidebar-workspace-header]')
-      const list = header?.parentElement?.querySelector('[class*="listArea"]')
-        ?? scrollport.querySelector('[class*="listArea"]')
-      if (list === null) return false
-      scrollport.classList.add('st-list-only')
-      // 不只依赖样式表：直接给实际滚动节点上 inline !important，避免
-      // 主题/缓存/旧样式表让 overflow 规则失效。
-      scrollport.style.setProperty('overflow-y', 'hidden', 'important')
-      // 关键：overflow 改 hidden 不会把已有的 scrollTop 归零。用户已经
-      // 滚到按钮区时，列表会继续停在按钮下面；锁定时必须回到顶部。
-      if (scrollport.scrollTop !== 0) scrollport.scrollTop = 0
-      const region = scrollport.querySelector('[class*="regionArea"]')
-      if (region instanceof HTMLElement) region.style.setProperty('overflow', 'hidden', 'important')
-      if (list instanceof HTMLElement) list.style.setProperty('overflow-y', 'auto', 'important')
-      if (!listOnlyProbeLogged) {
-        listOnlyProbeLogged = true
-        log('debug', 'dom.list-only', '侧栏列表锁定到 listArea', {
-          hasAttr: scrollport.hasAttribute('data-sidebar-scrollport'),
-          outerOverflow: getComputedStyle(scrollport).overflowY,
-          listOverflow: getComputedStyle(list).overflowY,
-          scrollTop: scrollport.scrollTop,
-          navTop: Math.round(nav.getBoundingClientRect().top),
-          navBottom: Math.round(nav.getBoundingClientRect().bottom),
-          listTop: Math.round(list.getBoundingClientRect().top),
-          listClass: String(list.className).slice(0, 80),
+      if (nav === null) return
+      const header = document.querySelector('[data-sidebar-workspace-header]')
+      const list = (header?.parentElement ?? nav.parentElement)?.querySelector('[class*="listArea"]')
+        ?? document.querySelector('[class*="listArea"]')
+      if (!(list instanceof HTMLElement)) return
+      const navRect = nav.getBoundingClientRect()
+      const headerRect = header instanceof HTMLElement ? header.getBoundingClientRect() : null
+      // 按钮区 + 工作区标题/搜索工具栏的下边界。
+      const boundary = Math.max(navRect.bottom, headerRect?.bottom ?? 0)
+      let hidden = 0
+      for (const row of list.querySelectorAll('[data-row-key]')) {
+        const shouldHide = row.getBoundingClientRect().top < boundary
+        if (shouldHide) {
+          hidden += 1
+          row.classList.add('st-row-hidden')
+          row.setAttribute('aria-hidden', 'true')
+          row.setAttribute('inert', '')
+        } else {
+          row.classList.remove('st-row-hidden')
+          row.removeAttribute('aria-hidden')
+          row.removeAttribute('inert')
+        }
+      }
+      if (!rowHideProbeLogged && hidden > 0) {
+        rowHideProbeLogged = true
+        log('debug', 'dom.row-hide', '按钮区会话条已隐藏', {
+          hidden,
+          boundary: Math.round(boundary),
+          scrollTop: Math.round(nav.parentElement?.scrollTop ?? 0),
         })
       }
-      return true
     }
 
     /** 判定一颗按钮是不是侧栏「更多」：带 aria-haspopup="menu"、在 nav 里，且该 nav 有面板行。 */
@@ -2242,8 +2232,8 @@ window.__ModuleLoader__.load({
         }, 'sidebar-tidy: pinned panel nav')
         schedule()
         // DOM/侧栏槽位可能远晚于 apply（实测重启后 apply 时 panels=0、
-        // uiWorkspace=false）。用 MutationObserver 持续等到 workspace 的
-        // listArea 出现，再锁外层滚动；首秒内再补一次 interval。
+        // uiWorkspace=false）。持续等 workspace 的 listArea 出现，
+        // 再按滚动位置隐藏进入按钮区的会话条；不锁外层滚动。
         ctx.effect(() => {
           let scheduled = false
           const ensure = () => {
@@ -2252,18 +2242,23 @@ window.__ModuleLoader__.load({
             setTimeout(() => {
               scheduled = false
               pinPanelNav()
-              lockSidebarList()
-            }, 80)
+              scheduleRowHide()
+            }, 50)
           }
           const observer = new MutationObserver(ensure)
           observer.observe(document.body, { childList: true, subtree: true })
           const timer = setInterval(ensure, 1000)
+          const onScroll = () => scheduleRowHide()
+          document.addEventListener('scroll', onScroll, true)
+          window.addEventListener('resize', onScroll)
           ensure()
           return () => {
             observer.disconnect()
             clearInterval(timer)
+            document.removeEventListener('scroll', onScroll, true)
+            window.removeEventListener('resize', onScroll)
           }
-        }, 'sidebar-tidy: list lock')
+        }, 'sidebar-tidy: row hiding')
 
         // 恢复持久化顺序与自定义白名单（重启/重载后不丢）；面板列表变化时若下拉开着就重绘
         const sync = () => {
