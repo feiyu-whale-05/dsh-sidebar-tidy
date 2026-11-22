@@ -512,13 +512,14 @@ window.__ModuleLoader__.load({
            用伪元素盖住上下空隙，滚动前后面板行的位置完全不变。 */
         top: 8px;
         z-index: 4;
-        /* 不直接用半透明 sidebar-fill：面板透明时下面滚上来的会话文字会透出。
-           先铺一层不透明 bg-base，再叠 sidebar-fill 保持原有色调。 */
-        background-color: var(--dsw-alias-bg-base, #fff);
-        background-image: linear-gradient(
-          var(--dsw-specific-sidebar-fill, var(--dsw-alias-bg-base, #fff)),
-          var(--dsw-specific-sidebar-fill, var(--dsw-alias-bg-base, #fff))
-        );
+        /* 面板透明时（Aether 等主题会把 sidebar-fill / bg-base 都设成 rgba），
+           直接叠半透明颜色仍会让下面滚上来的会话文字透出。
+           用 CSS 相对颜色把 sidebar-fill 的 RGB 取出来、alpha 固定为 1：
+           保住主题色相的同时得到真正不透明的底色。 */
+        --st-panel-fill: var(--dsw-alias-bg-base, #fff);
+        --st-panel-fill: rgb(from var(--aether-chrome-fill, var(--dsw-specific-sidebar-fill, var(--dsw-alias-bg-base, #fff))) r g b / 1);
+        background-color: var(--st-panel-fill);
+        background-image: none;
         box-shadow: 0 1px 0 var(--dsw-alias-border-l1, rgba(0, 0, 0, .06));
       }
       nav.st-pinned::before,
@@ -533,11 +534,8 @@ window.__ModuleLoader__.load({
         right: 0;
         z-index: -1;
         pointer-events: none;
-        background-color: var(--dsw-alias-bg-base, #fff);
-        background-image: linear-gradient(
-          var(--dsw-specific-sidebar-fill, var(--dsw-alias-bg-base, #fff)),
-          var(--dsw-specific-sidebar-fill, var(--dsw-alias-bg-base, #fff))
-        );
+        background-color: var(--st-panel-fill, var(--dsw-alias-bg-base, #fff));
+        background-image: none;
       }
       nav.st-pinned::before,
       [data-sidebar-scrollport] > nav::before,
