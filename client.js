@@ -2290,20 +2290,51 @@ window.__ModuleLoader__.load({
       return clone
     }
 
+    /**
+     * 重建按钮区的背景板。
+     *
+     * 历史坑（2026-11-28 用户实测指出）：这里原来把 `#dsh-aether-stage` 的
+     * **所有子元素**（也就是壁纸舞台里的整屏视频/图片 + 压暗层）克隆进按钮区，
+     * 结果按钮区显示的是「最底层的壁纸」，而不是「侧栏自己的背景」——
+     * 深色主题下看起来就是"把视频壁纸当成了侧栏壁纸"。
+     *
+     * 现在只用侧栏自己的背景：底色 + 侧栏背景图，并按侧栏坐标系定位，
+     * 保证按钮区与侧栏其余部分视觉一致。
+     */
     function rebuildBackgroundPatch() {
       if (bgPatchEl === null) return
       const stageHost = bgPatchEl.querySelector('.st-bg-patch-stage')
-      if (!(stageHost instanceof HTMLElement)) return
-      stageHost.replaceChildren()
-      const stage = document.querySelector('#dsh-aether-stage')
-      if (!(stage instanceof HTMLElement)) return
-      for (const child of stage.children) stageHost.append(cloneWithStyle(child))
-      for (const video of stageHost.querySelectorAll('video')) {
-        try { void video.play() } catch { /* 自动播放被拒绝时保持首帧 */ }
-      }
+      // 不再克隆整屏壁纸；留空即可（.st-bg-patch-stage 现在只占位）
+      if (stageHost instanceof HTMLElement) stageHost.replaceChildren()
+
+      const nav = bgPatchEl.parentElement
+      const col = document.querySelector('[class*="sidebarCol"]')
+        || (nav instanceof Element ? nav.closest('[class*="sidebar"]') : null)
+      const colStyle = col instanceof Element ? getComputedStyle(col) : null
+
       for (const oldFill of bgPatchEl.querySelectorAll('.st-bg-patch-fill')) oldFill.remove()
       const fill = document.createElement('div')
       fill.className = 'st-bg-patch-fill'
+      if (colStyle !== null) {
+        // 底色：跟随侧栏填充色（半透明），父级侧栏背景图会自然透过来
+        const bgColor = colStyle.backgroundColor
+        if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+          fill.style.backgroundColor = bgColor
+        }
+        // 侧栏背景图：按侧栏坐标系铺，避免在 nav 上被拉伸错位
+        const bgImage = colStyle.backgroundImage
+        if (bgImage && bgImage !== 'none') {
+          const colRect = col.getBoundingClientRect()
+          const navRect = nav instanceof Element ? nav.getBoundingClientRect() : colRect
+          if (colRect.width > 0 && colRect.height > 0) {
+            fill.style.backgroundImage = bgImage
+            fill.style.backgroundSize = `${Math.round(colRect.width)}px ${Math.round(colRect.height)}px`
+            fill.style.backgroundPosition =
+              `${Math.round(navRect.left - colRect.left)}px ${Math.round(navRect.top - colRect.top)}px`
+            fill.style.backgroundRepeat = 'no-repeat'
+          }
+        }
+      }
       bgPatchEl.append(fill)
     }
 
@@ -2329,9 +2360,11 @@ window.__ModuleLoader__.load({
         bgStageSource = stage
         if (bgStageObserver !== null) bgStageObserver.disconnect()
         bgStageObserver = null
-        if (stage instanceof HTMLElement && typeof MutationObserver === 'function') {
+        // 改成盯「侧栏列」：背景图/宽度变化时重建，不再盯整屏壁纸舞台
+        const colWatch = document.querySelector('[class*="sidebarCol"]')
+        if (colWatch instanceof Element && typeof MutationObserver === 'function') {
           bgStageObserver = new MutationObserver(() => rebuildBackgroundPatch())
-          bgStageObserver.observe(stage, { childList: true, subtree: true, attributes: true })
+          bgStageObserver.observe(colWatch, { attributes: true, attributeFilter: ['class', 'style'] })
         }
         rebuildBackgroundPatch()
       }
