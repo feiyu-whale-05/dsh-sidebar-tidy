@@ -1,6 +1,6 @@
 {
   "name": "dsh-sidebar-tidy",
-  "version": "0.2.2-rc.3",
+  "version": "0.2.2-rc.4",
   "private": true,
   "type": "module",
   "description": "左侧栏精简 + 移动抽屉布局 + 打包融合 DSH-better-sidebar 右侧工作台（文件树/编辑器/Git/任务/终端）；日志写入 D:\\DSH-plugins\\log\\dsh-sidebar-tidy。",
