@@ -11,3 +11,6 @@
 - **Theme and logs**: follows DSH theme tokens; host logs are daily `host-YYYY-MM-DD.jsonl` files, one JSON per line, rotating above 2 MiB with five backups.
 
 > For users who want a quieter left sidebar without giving up the right-hand workbench.
+
+
+**Panel-area hiding**: under Settings → General choose row-level hiding or a background patch cloned from the sidebar wallpaper; the list keeps scrolling normally.

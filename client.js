@@ -210,6 +210,29 @@ window.__ModuleLoader__.load({
     const ORDER_KEY = 'dsh-sidebar-tidy:order'
     const KEEP_KEY = 'dsh-sidebar-tidy:keep'
     const PINNED_KEY = 'dsh-sidebar-tidy:pinned'
+    const HIDE_MODE_KEY = 'dsh-sidebar-tidy:hide-mode'
+    const HIDE_MODES = ['row', 'bg']
+    const hideModeListeners = new Set()
+
+    function readHideMode() {
+      try {
+        const stored = window.localStorage.getItem(HIDE_MODE_KEY)
+        return HIDE_MODES.includes(stored) ? stored : 'row'
+      } catch {
+        return 'row'
+      }
+    }
+    function writeHideMode(mode) {
+      try {
+        window.localStorage.setItem(HIDE_MODE_KEY, mode)
+      } catch {
+        // 隐私模式：只在本次会话生效
+      }
+    }
+    function subscribeHideMode(listener) {
+      hideModeListeners.add(listener)
+      return () => hideModeListeners.delete(listener)
+    }
 
     /** 读 JSON 字符串数组；没有记录或损坏时返回 null。 */
     function readStringArray(key) {
@@ -514,6 +537,31 @@ window.__ModuleLoader__.load({
         visibility: hidden !important;
         pointer-events: none !important;
       }
+      .st-bg-patch {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        pointer-events: none;
+        overflow: hidden;
+        isolation: isolate;
+      }
+      .st-bg-patch-stage {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        filter: blur(var(--aether-chrome-blur, 0px)) saturate(var(--aether-saturation, 1.15));
+      }
+      .st-bg-patch-fill {
+        position: absolute;
+        inset: 0;
+        z-index: 3;
+        background: var(--dsw-specific-sidebar-fill, var(--dsw-alias-bg-base, transparent));
+      }
+      /* 背景板在面板背景之上、按钮之下，才会真正盖住列表文字。 */
+      nav.st-pinned > *:not(.st-bg-patch) {
+        position: relative;
+        z-index: 1;
+      }
       /* 「更多」右侧的小箭头：收起时朝下，展开时朝上（2026-10-25） */
       nav button[aria-haspopup="menu"]{position:relative;padding-right:24px!important}
       nav button[aria-haspopup="menu"]::after{content:"";position:absolute;right:9px;top:50%;
@@ -536,6 +584,10 @@ window.__ModuleLoader__.load({
         border-right:1.6px solid var(--dsw-alias-label-secondary,#61666b);
         border-bottom:1.6px solid var(--dsw-alias-label-secondary,#61666b);
         transform:translateY(-70%) rotate(45deg);pointer-events:none}
+      .st-hide-seg{display:flex;gap:6px}
+      .st-hide-seg .st-settings-select{height:32px;padding:0 12px;font-size:13px}
+      .st-hide-seg .st-settings-select[data-selected="true"]{
+        box-shadow:inset 0 0 0 1.5px var(--dsw-alias-brand-primary,#4d6bfe)}
       .st-settings-menu{position:fixed;z-index:2147483000;min-width:200px;max-width:320px;padding:4px;
         background:var(--dsw-alias-bg-layer-2,#fff);color:var(--dsw-alias-label-primary,#0f1115);
         border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.25));border-radius:10px;
@@ -1447,6 +1499,47 @@ window.__ModuleLoader__.load({
         menuNode)
     }
 
+    // ── 设置 → 通用：按钮区隐藏方式 ────────────────────────────────────
+    function ListHideSettingsRow(props) {
+      const mode = React.useSyncExternalStore(props.subscribeMode, props.getMode, props.getMode)
+      const zh = props.zh
+      const labels = zh
+        ? { title: '按钮区隐藏', desc: '会话滚进按钮区时：行级隐藏整条会话，或用侧栏背景图覆盖按钮区。', row: '行级隐藏', bg: '背景覆盖' }
+        : { title: 'Panel area hiding', desc: 'When a session scrolls under the panel: hide the row, or cover the panel area with the sidebar background.', row: 'Row hide', bg: 'Background' }
+      const options = [
+        { id: 'row', label: labels.row },
+        { id: 'bg', label: labels.bg },
+      ]
+      return h('div', { className: 'st-settings-row', 'data-role': 'sidebar-tidy-list-hide-setting' },
+        h('div', { className: 'st-settings-text' },
+          h('div', { className: 'st-settings-title' }, labels.title),
+          h('div', { className: 'st-settings-desc' }, labels.desc)),
+        h('div', { className: 'st-hide-seg', role: 'group', 'aria-label': labels.title },
+          options.map(option => h('button', {
+            key: option.id,
+            type: 'button',
+            className: 'st-settings-select',
+            'data-selected': mode === option.id ? 'true' : 'false',
+            'aria-pressed': mode === option.id,
+            onClick: () => props.setMode(option.id),
+          }, option.label))))
+    }
+
+    function registerListHideSettings(ctx) {
+      const zh = isChinese(ctx)
+      ctx.slots.inject('settings.general.item', () => ctx.slots.register({
+        name: 'settings.general.item',
+        id: 'dsh-sidebar-tidy-list-hide',
+        order: 14,
+        inject: () => ({
+          getMode: readHideMode,
+          setMode: setHideMode,
+          subscribeMode: subscribeHideMode,
+          zh,
+        }),
+      }, ListHideSettingsRow))
+    }
+
     /** 只在 General 设置页挂载时注册；页面卸载由 slots.inject 自动清理。 */
     function registerMobileSettings(ctx, mobileLayout) {
       const zh = isChinese(ctx)
@@ -2103,15 +2196,32 @@ window.__ModuleLoader__.load({
       })
     }
     function hideRowsUnderButtons() {
+      const mode = readHideMode()
       const nav = document.querySelector('nav.st-pinned')
-      if (nav === null) return
+      if (nav === null) {
+        removeBackgroundPatch()
+        return
+      }
       const header = document.querySelector('[data-sidebar-workspace-header]')
       const list = (header?.parentElement ?? nav.parentElement)?.querySelector('[class*="listArea"]')
         ?? document.querySelector('[class*="listArea"]')
-      if (!(list instanceof HTMLElement)) return
+      if (!(list instanceof HTMLElement)) {
+        removeBackgroundPatch()
+        return
+      }
+      if (mode === 'bg') {
+        // 背景隐藏：会话条保持可见/可点，用侧栏背景图覆盖按钮区。
+        for (const row of list.querySelectorAll('.st-row-hidden')) {
+          row.classList.remove('st-row-hidden')
+          row.removeAttribute('aria-hidden')
+          row.removeAttribute('inert')
+        }
+        ensureBackgroundPatch(nav)
+        return
+      }
+      removeBackgroundPatch()
       const navRect = nav.getBoundingClientRect()
       const headerRect = header instanceof HTMLElement ? header.getBoundingClientRect() : null
-      // 按钮区 + 工作区标题/搜索工具栏的下边界。
       const boundary = Math.max(navRect.bottom, headerRect?.bottom ?? 0)
       let hidden = 0
       for (const row of list.querySelectorAll('[data-row-key]')) {
@@ -2130,6 +2240,7 @@ window.__ModuleLoader__.load({
       if (!rowHideProbeLogged && hidden > 0) {
         rowHideProbeLogged = true
         log('debug', 'dom.row-hide', '按钮区会话条已隐藏', {
+          mode,
           hidden,
           boundary: Math.round(boundary),
           scrollTop: Math.round(nav.parentElement?.scrollTop ?? 0),
@@ -2137,6 +2248,113 @@ window.__ModuleLoader__.load({
       }
     }
 
+    // ── 背景隐藏：克隆侧栏背后的壁纸层，裁成按钮区大小盖在列表上 ──
+    let bgPatchEl = null
+    let bgStageSource = null
+    let bgStageObserver = null
+    let bgProbeLogged = false
+    const PATCH_STYLE_PROPS = [
+      'position', 'inset', 'top', 'right', 'bottom', 'left', 'width', 'height',
+      'z-index', 'opacity', 'background-image', 'background-color', 'background-size',
+      'background-position', 'background-repeat', 'filter', 'transform', 'animation',
+      'mix-blend-mode', 'visibility', 'display', 'object-fit', 'border-radius',
+    ]
+
+    function removeBackgroundPatch() {
+      if (bgStageObserver !== null) {
+        bgStageObserver.disconnect()
+        bgStageObserver = null
+      }
+      bgStageSource = null
+      if (bgPatchEl !== null) {
+        bgPatchEl.remove()
+        bgPatchEl = null
+      }
+    }
+
+    function cloneWithStyle(node) {
+      if (!(node instanceof Element)) return node.cloneNode(false)
+      const clone = node.cloneNode(false)
+      const computed = getComputedStyle(node)
+      for (const prop of PATCH_STYLE_PROPS) {
+        const value = computed.getPropertyValue(prop)
+        if (value !== '') clone.style.setProperty(prop, value)
+      }
+      if (node instanceof HTMLVideoElement) {
+        clone.muted = true
+        clone.autoplay = true
+        clone.setAttribute('muted', '')
+        clone.setAttribute('playsinline', '')
+      }
+      for (const child of node.children) clone.append(cloneWithStyle(child))
+      return clone
+    }
+
+    function rebuildBackgroundPatch() {
+      if (bgPatchEl === null) return
+      const stageHost = bgPatchEl.querySelector('.st-bg-patch-stage')
+      if (!(stageHost instanceof HTMLElement)) return
+      stageHost.replaceChildren()
+      const stage = document.querySelector('#dsh-aether-stage')
+      if (!(stage instanceof HTMLElement)) return
+      for (const child of stage.children) stageHost.append(cloneWithStyle(child))
+      for (const video of stageHost.querySelectorAll('video')) {
+        try { void video.play() } catch { /* 自动播放被拒绝时保持首帧 */ }
+      }
+      for (const oldFill of bgPatchEl.querySelectorAll('.st-bg-patch-fill')) oldFill.remove()
+      const fill = document.createElement('div')
+      fill.className = 'st-bg-patch-fill'
+      bgPatchEl.append(fill)
+    }
+
+    function ensureBackgroundPatch(nav) {
+      if (!(nav instanceof HTMLElement)) return
+      if (bgPatchEl === null || !bgPatchEl.isConnected) {
+        bgPatchEl = document.createElement('div')
+        bgPatchEl.className = 'st-bg-patch'
+        bgPatchEl.setAttribute('aria-hidden', 'true')
+        bgPatchEl.innerHTML = '<div class="st-bg-patch-stage"></div><div class="st-bg-patch-fill"></div>'
+      }
+      // 挂到 nav 自己的 stacking context 里（z-index:-1）：盖住下方列表，
+      // 但仍在面板按钮下面；挂 body 会被侧栏列自己的绘制层盖住。
+      if (bgPatchEl.parentElement !== nav) nav.append(bgPatchEl)
+      const rect = nav.getBoundingClientRect()
+      const top = Math.max(0, rect.top)
+      const left = Math.max(0, rect.left)
+      const right = Math.max(0, window.innerWidth - rect.right)
+      const bottom = Math.max(0, window.innerHeight - rect.bottom)
+      bgPatchEl.style.clipPath = `inset(${top}px ${right}px ${bottom}px ${left}px)`
+      const stage = document.querySelector('#dsh-aether-stage')
+      if (stage !== bgStageSource) {
+        bgStageSource = stage
+        if (bgStageObserver !== null) bgStageObserver.disconnect()
+        bgStageObserver = null
+        if (stage instanceof HTMLElement && typeof MutationObserver === 'function') {
+          bgStageObserver = new MutationObserver(() => rebuildBackgroundPatch())
+          bgStageObserver.observe(stage, { childList: true, subtree: true, attributes: true })
+        }
+        rebuildBackgroundPatch()
+      }
+      if (!bgProbeLogged) {
+        bgProbeLogged = true
+        log('debug', 'dom.bg-hide', '按钮区背景隐藏已启用', {
+          hasStage: stage instanceof HTMLElement,
+          clip: bgPatchEl.style.clipPath,
+          top: Math.round(rect.top),
+          bottom: Math.round(rect.bottom),
+        })
+      }
+    }
+
+    function setHideMode(next) {
+      if (!HIDE_MODES.includes(next) || next === readHideMode()) return
+      writeHideMode(next)
+      log('info', 'hide.mode', '切换按钮区隐藏方式', { mode: next })
+      for (const listener of hideModeListeners) {
+        try { listener() } catch { /* 单个订阅者出错不影响 */ }
+      }
+      scheduleRowHide()
+    }
     /** 判定一颗按钮是不是侧栏「更多」：带 aria-haspopup="menu"、在 nav 里，且该 nav 有面板行。 */
     function moreButtonIn(button) {
       if (button === null || button === undefined) return null
@@ -2179,6 +2397,7 @@ window.__ModuleLoader__.load({
         ctx.effect(() => ensureStyle(), 'sidebar-tidy: styles')
         const mobileLayout = createMobileLayout(ctx)
         registerMobileSettings(ctx, mobileLayout)
+        registerListHideSettings(ctx)
         const dropdown = createDropdown(ctx)
         log('info', 'plugin.apply', '客户端半侧已激活', {
           version: PLUGIN_VERSION,
